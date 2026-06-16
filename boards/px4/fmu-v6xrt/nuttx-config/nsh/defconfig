@@ -90,6 +90,18 @@ CONFIG_IMXRT_ENET=y
 CONFIG_IMXRT_FLEXCAN1=y
 CONFIG_IMXRT_FLEXCAN2=y
 CONFIG_IMXRT_FLEXCAN3=y
+# CAN-FD DELIBERATELY DISABLED (NET_CAN_CANFD=n below). The TTC580 VCU is
+# classic CANopen 500 kbit/s and nothing on this rover uses CAN-FD, so the
+# FD path is pure liability: it is force-selected by the RT1170 family
+# (IMXRT_FLEXCAN1/2_FD) and gated on at runtime by NET_CAN_CANFD. Turning
+# NET_CAN_CANFD off makes canfd_capable=false on all 3 buses, skipping the
+# FD register setup (64-byte MBs / 4 Mbit data phase / TDC) entirely and
+# running classic 8-byte / 64-MB mode. With FD off, classic mode reads the
+# plain *_BITRATE (default 1 Mbps) — pin all three to 500 k.
+CONFIG_FLEXCAN1_BITRATE=500000
+CONFIG_FLEXCAN2_BITRATE=500000
+CONFIG_FLEXCAN3_BITRATE=500000
+CONFIG_CAN_CONNS=16
 CONFIG_IMXRT_FLEXSPI2=y
 CONFIG_IMXRT_GPIO13_IRQ=y
 CONFIG_IMXRT_GPIO1_0_15_IRQ=y
@@ -216,6 +228,7 @@ CONFIG_NET_ARP_IPIN=y
 CONFIG_NET_ARP_SEND=y
 CONFIG_NET_BROADCAST=y
 CONFIG_NET_CAN=y
+# CONFIG_NET_CAN_CANFD is not set
 CONFIG_NET_CAN_EXTID=y
 CONFIG_NET_CAN_NOTIFIER=y
 CONFIG_NET_CAN_RAW_FILTER_MAX=1
