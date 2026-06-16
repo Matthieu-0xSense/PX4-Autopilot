@@ -291,6 +291,11 @@ void Sih::parameters_updated()
 		_lpos_ref.initReference(static_cast<double>(_sih_lat0.get()), static_cast<double>(_sih_lon0.get()));
 		_lpos_ref_alt = _sih_h0.get();
 
+		// Apply initial yaw from SIH_LOC_YAW0 parameter
+		if (fabsf(_sih_yaw0.get()) > FLT_EPSILON) {
+			_q = Quatf(Eulerf(0.0f, 0.0f, radians(_sih_yaw0.get())));
+		}
+
 		// Reset earth position, velocity and attitude
 		_lla.setLatitudeDeg(static_cast<double>(_sih_lat0.get()));
 		_lla.setLongitudeDeg(static_cast<double>(_sih_lon0.get()));
@@ -461,9 +466,15 @@ void Sih::generate_ts_aerodynamics()
 void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const float steering_cmd, const float dt)
 {
 	// --- Constants ---
-	static constexpr float MAX_THROTTLE_FORCE = 400.0f;     // [N]
-	static constexpr float MAX_STEER_ANGLE = radians(30.f); // [rad]
-	static constexpr float WHEEL_BASE = 0.321f;             // [m] Distance between front and rear axle
+	// robot_nav: scaled from the upstream toy car (20 kg, 0.321 m) to the
+	// 0xSense field rover so the SIH bench matches the production control
+	// geometry (51003: RA_WHEEL_BASE 2.825, RA_MAX_STR_ANG 75deg/1.31).
+	// MAX_THROTTLE_FORCE scaled with SIH_MASS (×15: 20→300 kg) to preserve the
+	// validated accel/terminal-speed profile. See docs/px4_changes.md +
+	// docs/rover_tuning.md. NOTE: these are compile-time — rebuild the bench fw.
+	static constexpr float MAX_THROTTLE_FORCE = 6000.0f;    // [N] (was 400, ×15 mass ratio)
+	static constexpr float MAX_STEER_ANGLE = radians(75.f); // [rad] (= RA_MAX_STR_ANG 1.31; was 30°)
+	static constexpr float WHEEL_BASE = 2.825f;             // [m] front↔rear axle (= RA_WHEEL_BASE)
 	static constexpr float C = 500.f;                       // [N/rad] Cornering stiffness
 	static constexpr float MU_S = 0.5f;                     // [-] Static Coefficient of friction
 	static constexpr float MU_K = 0.4f;                     // [-] Kinetic Coefficient of friction

@@ -16,57 +16,74 @@ param set-default EKF2_ANGERR_INIT 0.01
 
 PX4_SIMULATOR=${PX4_SIMULATOR:=sihsim}
 PX4_SIM_MODEL=${PX4_SIM_MODEL:=rover_ackermann}
+PX4_GZ_MODEL_POSE=${PX4_GZ_MODEL_POSE:=0,0,0,0,0,-0.0472}
 
 param set-default SIH_VEHICLE_TYPE 5 # sih as rover ackermann
 
 param set-default PWM_MAIN_FUNC1 201 # Steering
 param set-default PWM_MAIN_FUNC2 101 # Throttle
-param set-default SIH_MASS 20
-param set-default SIH_IXX 0.4333
-param set-default SIH_IYY 1.6833
-param set-default SIH_IZZ 2.0833
+# 0xSense rover SIH physics (mirror of 51003 + bench_sih_config.txt). m=300,
+# L=2.825, W=H=1.5. Pairs with sih.cpp WHEEL_BASE 2.825 / MAX_STEER_ANGLE 75deg.
+param set-default SIH_MASS 300
+param set-default SIH_IXX 113
+param set-default SIH_IYY 256
+param set-default SIH_IZZ 256
 param set-default SIH_IXZ 0
-param set-default SIH_KDV 50
-param set-default SIH_KDW 10
+param set-default SIH_KDV 1500
+param set-default SIH_KDW 300
+param set-default SIH_LOC_LAT0 47.62399800296214
+param set-default SIH_LOC_LON0 1.4193002806250288
+param set-default SIH_LOC_YAW0 -150.0    # Initial heading: 60° left of North
 
 param set-default SENS_EN_GPSSIM 1
 param set-default SENS_EN_BAROSIM 1
 param set-default SENS_EN_MAGSIM 1
 
-# Ackermann Parameters
-param set-default RA_WHEEL_BASE 0.321
+# Ackermann Parameters (0xSense rover tune, mirror of 51003 — data sheet:
+# 75deg max steer, 2.825 m wheelbase, 4.9 km/h. min turn radius wb/tan75 ~0.76 m)
+param set-default RA_WHEEL_BASE 2.825
 param set-default RA_ACC_RAD_GAIN 2
-param set-default RA_ACC_RAD_MAX 3
-param set-default RA_MAX_STR_ANG 0.5236
+param set-default RA_ACC_RAD_MAX 1.0
+param set-default RA_MAX_STR_ANG 1.31
 param set-default RA_STR_RATE_LIM 360
 
 # Rate Control Parameters
-param set-default RO_YAW_RATE_I 0.01
-param set-default RO_YAW_RATE_P 0.25
-param set-default RO_YAW_RATE_LIM 180
-param set-default RO_YAW_ACCEL_LIM 400
-param set-default RO_YAW_DECEL_LIM 800
+param set-default RO_YAW_RATE_I 0.02
+param set-default RO_YAW_RATE_P 0.3
+param set-default RO_YAW_RATE_LIM 90
+param set-default RO_YAW_ACCEL_LIM 80
+param set-default RO_YAW_DECEL_LIM 80
 param set-default RO_YAW_RATE_CORR 1
 
 # Attitude Control Parameters
-param set-default RO_YAW_P 5
+param set-default RO_YAW_P 2.0
 
 # Velocity Control Parameters
-param set-default RO_ACCEL_LIM 3
-param set-default RO_DECEL_LIM 3
+param set-default RO_ACCEL_LIM 0.5
+param set-default RO_DECEL_LIM 0.5
 param set-default RO_JERK_LIM 10
-param set-default RO_MAX_THR_SPEED 3.2
-param set-default RO_SPEED_LIM 3
+param set-default RO_MAX_THR_SPEED 1.4
+param set-default RO_SPEED_LIM 1.3
 param set-default RO_SPEED_I 0.001
 param set-default RO_SPEED_P 0.001
-param set-default RO_SPEED_RED 1
+param set-default RO_SPEED_RED 2.5
 
 # Pure Pursuit parameters
-param set-default PP_LOOKAHD_GAIN 1
-param set-default PP_LOOKAHD_MAX 10
-param set-default PP_LOOKAHD_MIN 1
+param set-default PP_LOOKAHD_GAIN 1.5
+param set-default PP_LOOKAHD_MAX 12
+param set-default PP_LOOKAHD_MIN 1.5
 
 # Pure Pursuit parameters
-param set-default PP_LOOKAHD_GAIN 1
-param set-default PP_LOOKAHD_MAX 10
-param set-default PP_LOOKAHD_MIN 1
+param set-default PP_LOOKAHD_GAIN 1.5
+param set-default PP_LOOKAHD_MAX 12
+param set-default PP_LOOKAHD_MIN 1.5
+
+# Companion-loss failsafe (see robot_nav/docs/safety.md §1.1)
+# Backup path: PX4 commander datalink failsafe — Hold/Loiter on GCS loss
+# after COM_DL_LOSS_T (5 s minimum). The bridge fast watchdog is the
+# primary path with a ≤500 ms target.
+param set-default COM_DL_LOSS_T 5
+param set-default NAV_DLL_ACT 1
+param set-default ROV_DLL_EN 1
+param set-default ROV_DLL_LOSS_MS 500
+param set-default ROV_SP_STALE_MS 150

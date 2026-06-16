@@ -215,6 +215,18 @@ parameters:
       max: 8848.0
       decimal: 2
       increment: 0.01
+    SIH_LOC_YAW0:
+      description:
+        short: Initial heading (yaw) angle
+        long: |-
+          This value represents the initial heading of the vehicle in the simulation.
+          0 degrees is North, positive is clockwise (East = 90, South = 180, West = 270).
+      type: float
+      default: 0.0
+      unit: deg
+      min: -180
+      max: 360
+      decimal: 1
     SIH_DISTSNSR_MIN:
       description:
         short: distance sensor minimum range
