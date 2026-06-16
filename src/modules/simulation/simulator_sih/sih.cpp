@@ -486,6 +486,11 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 
 	// --- Compute inputs ---
 	const float delta = MAX_STEER_ANGLE * steering_cmd; // [rad] Steering angle
+	// robot_nav: use tan(delta) in the cornering terms so the steady-state yaw
+	// rate matches true Ackermann (tan(d)*v/wb), not the small-angle linear
+	// approximation (d*v/wb). At 75 deg the linear form under-turns ~2.85x
+	// (sim radius wb/d ~2.16 m vs real wb/tan(d) ~0.76 m). See docs/px4_changes.md.
+	const float tan_delta = tanf(delta);
 	const float F_x = MAX_THROTTLE_FORCE * throttle_cmd;         // [N] Throttle force
 
 	// --- Compute forces and moments ---
@@ -496,9 +501,9 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 		// Equations based on the lateral dynamics of the bicycle model from [1]
 		// [1] Sri Anumakonda, Everything you need to know about Self-Driving Cars in <30 minutes
 		// Link: https://srianumakonda.medium.com/everything-you-need-to-know-about-self-driving-in-30-minutes-b38d68bd3427
-		const float a_y = C * delta / _MASS - fabsf(v_B(0)) * _w_B(2)
+		const float a_y = C * tan_delta / _MASS - fabsf(v_B(0)) * _w_B(2)
 				  - 2 * C * v_B(1) / (_MASS * fabsf(v_B(0))); // [m/s^2] Lateral acceleration
-		const float psi_dot_dot = WHEEL_BASE * C * delta / _sih_izz.get()
+		const float psi_dot_dot = WHEEL_BASE * C * tan_delta / _sih_izz.get()
 					  - C * WHEEL_BASE * WHEEL_BASE  * _w_B(2) / (_sih_izz.get() * fabsf(v_B(0))); // [rad/s^2] Yaw acceleration
 		F_y = _MASS * a_y; // Lateral force [N]
 		M_z = _sih_izz.get() * psi_dot_dot; // [Nm] Yaw moment
