@@ -472,10 +472,10 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 	// MAX_THROTTLE_FORCE scaled with SIH_MASS (×15: 20→300 kg) to preserve the
 	// validated accel/terminal-speed profile. See docs/px4_changes.md +
 	// docs/rover_tuning.md. NOTE: these are compile-time — rebuild the bench fw.
-	static constexpr float MAX_THROTTLE_FORCE = 6000.0f;    // [N] (was 400, ×15 mass ratio)
+	static constexpr float MAX_THROTTLE_FORCE = 50000.0f;   // [N] 2.5 T (×8.33 from the 300 kg config; > ~12 kN static friction)
 	static constexpr float MAX_STEER_ANGLE = radians(75.f); // [rad] (= RA_MAX_STR_ANG 1.31; was 30°)
 	static constexpr float WHEEL_BASE = 2.825f;             // [m] front↔rear axle (= RA_WHEEL_BASE)
-	static constexpr float C = 500.f;                       // [N/rad] Cornering stiffness
+	static constexpr float C = 4167.f;                      // [N/rad] Cornering stiffness (2.5 T, ×8.33 from 300 kg; keeps yaw-accel in the proven-stable ~8 rad/s^2 range)
 	static constexpr float MU_S = 0.5f;                     // [-] Static Coefficient of friction
 	static constexpr float MU_K = 0.4f;                     // [-] Kinetic Coefficient of friction
 	static constexpr float MU_R = 0.3f;                     // [-] Rolling Coefficient of friction
@@ -490,7 +490,14 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 	// rate matches true Ackermann (tan(d)*v/wb), not the small-angle linear
 	// approximation (d*v/wb). At 75 deg the linear form under-turns ~2.85x
 	// (sim radius wb/d ~2.16 m vs real wb/tan(d) ~0.76 m). See docs/px4_changes.md.
-	const float tan_delta = tanf(delta);
+	// Cap tan(delta) for SIH stability. The dynamic bicycle model's yaw moment
+	// (WHEEL_BASE*C*tan_delta) is violent at large steer for a 2.8 m/300 kg body
+	// -> the 250 Hz integration + EKF go marginally unstable and some runs
+	// diverge. Cap at 1.5 (~56 deg, sim turn radius wb/1.5 ~1.9 m) to keep the
+	// forces near the stable small-angle regime. SITL then turns WIDER than the
+	// real 0.76 m rover: verify absolute turn radius on the bench/real; use SITL
+	// to tune tracking + oscillation behaviour. SITL-only physics.
+	const float tan_delta = math::min(tanf(delta), 1.5f);
 	const float F_x = MAX_THROTTLE_FORCE * throttle_cmd;         // [N] Throttle force
 
 	// --- Compute forces and moments ---
@@ -501,9 +508,16 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 		// Equations based on the lateral dynamics of the bicycle model from [1]
 		// [1] Sri Anumakonda, Everything you need to know about Self-Driving Cars in <30 minutes
 		// Link: https://srianumakonda.medium.com/everything-you-need-to-know-about-self-driving-in-30-minutes-b38d68bd3427
-		const float a_y = C * tan_delta / _MASS - fabsf(v_B(0)) * _w_B(2)
+		// Front-tire lateral force, saturated at the friction limit (mu*N). The
+		// raw linear model C*tan(delta) explodes at large steer (tan75=3.73 ->
+		// ~1865 N vs ~770 N actually needed) and intermittently diverges the SIH
+		// integration. Real tires cannot exceed mu*N; saturating bounds the
+		// cornering force + yaw moment -> stable, repeatable rover dynamics.
+		const float Fyf = math::constrain(C * tan_delta, -MU_S * _MASS * 9.81f,
+						  MU_S * _MASS * 9.81f);
+		const float a_y = Fyf / _MASS - fabsf(v_B(0)) * _w_B(2)
 				  - 2 * C * v_B(1) / (_MASS * fabsf(v_B(0))); // [m/s^2] Lateral acceleration
-		const float psi_dot_dot = WHEEL_BASE * C * tan_delta / _sih_izz.get()
+		const float psi_dot_dot = WHEEL_BASE * Fyf / _sih_izz.get()
 					  - C * WHEEL_BASE * WHEEL_BASE  * _w_B(2) / (_sih_izz.get() * fabsf(v_B(0))); // [rad/s^2] Yaw acceleration
 		F_y = _MASS * a_y; // Lateral force [N]
 		M_z = _sih_izz.get() * psi_dot_dot; // [Nm] Yaw moment

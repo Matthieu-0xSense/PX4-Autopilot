@@ -22,15 +22,15 @@ param set-default SIH_VEHICLE_TYPE 5 # sih as rover ackermann
 
 param set-default PWM_MAIN_FUNC1 201 # Steering
 param set-default PWM_MAIN_FUNC2 101 # Throttle
-# 0xSense rover SIH physics (mirror of 51003 + bench_sih_config.txt). m=300,
+# 0xSense rover SIH physics (mirror of 51003 + bench_sih_config.txt). m=2500 (2.5T),
 # L=2.825, W=H=1.5. Pairs with sih.cpp WHEEL_BASE 2.825 / MAX_STEER_ANGLE 75deg.
-param set-default SIH_MASS 300
-param set-default SIH_IXX 113
-param set-default SIH_IYY 256
-param set-default SIH_IZZ 256
+param set-default SIH_MASS 2500
+param set-default SIH_IXX 938
+param set-default SIH_IYY 2131
+param set-default SIH_IZZ 2131
 param set-default SIH_IXZ 0
-param set-default SIH_KDV 1500
-param set-default SIH_KDW 300
+param set-default SIH_KDV 12500
+param set-default SIH_KDW 2500
 param set-default SIH_LOC_LAT0 47.62399800296214
 param set-default SIH_LOC_LON0 1.4193002806250288
 param set-default SIH_LOC_YAW0 -150.0    # Initial heading: 60° left of North
