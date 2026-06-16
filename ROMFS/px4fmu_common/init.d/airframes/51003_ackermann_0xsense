@@ -63,7 +63,7 @@ param set-default RA_MAX_STR_ANG    1.31    # max steer [rad] = 75 deg (was 30 d
 # Outer heading P: yaw_rate_cmd = RO_YAW_P × heading_err, clamped to
 # RO_YAW_RATE_LIM. DEFAULT IS 0.0 => zero steering (silent — runSanityChecks
 # does not flag it). MUST be set. See docs/rover_tuning.md.
-param set-default RO_YAW_P          2.0
+param set-default RO_YAW_P          1.0     # 2.5T SITL sweep: softer loop, osc 0.196->0.053
 
 # ── Rate control ───────────────────────────────────────────────────────
 param set-default RO_YAW_RATE_P     0.3
@@ -119,9 +119,12 @@ param set-default CBRK_USB_CHK      197848
 # Lookahead L = GAIN × speed, clamped [MIN,MAX]. Long enough to track the line
 # smoothly, short enough to make the tight headland U-turn (turn radius
 # ~0.76 m). See docs/rover_tuning.md.
-param set-default PP_LOOKAHD_GAIN   1.5
+# Long lookahead suits the heavy 2.5T vehicle (plan turns further ahead, low
+# oscillation). NOTE: tuned on SITL which turns WIDER than the real 0.76 m
+# rover (SIH stability cap) -> re-check on the real robot; it may want shorter.
+param set-default PP_LOOKAHD_GAIN   2.0
 param set-default PP_LOOKAHD_MAX    12
-param set-default PP_LOOKAHD_MIN    1.5
+param set-default PP_LOOKAHD_MIN    5.0
 
 # Waypoint acceptance: drive TO the turn waypoint, do not cut the corner wide.
 # RA_ACC_RAD_MAX caps the auto corner-cut growth (scaled off min turn radius).

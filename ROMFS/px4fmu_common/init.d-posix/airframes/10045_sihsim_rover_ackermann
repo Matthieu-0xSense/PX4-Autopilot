@@ -56,7 +56,7 @@ param set-default RO_YAW_DECEL_LIM 80
 param set-default RO_YAW_RATE_CORR 1
 
 # Attitude Control Parameters
-param set-default RO_YAW_P 2.0
+param set-default RO_YAW_P 1.0
 
 # Velocity Control Parameters
 param set-default RO_ACCEL_LIM 0.5
@@ -69,14 +69,14 @@ param set-default RO_SPEED_P 0.001
 param set-default RO_SPEED_RED 2.5
 
 # Pure Pursuit parameters
-param set-default PP_LOOKAHD_GAIN 1.5
+param set-default PP_LOOKAHD_GAIN 2.0
 param set-default PP_LOOKAHD_MAX 12
-param set-default PP_LOOKAHD_MIN 1.5
+param set-default PP_LOOKAHD_MIN 5.0
 
 # Pure Pursuit parameters
-param set-default PP_LOOKAHD_GAIN 1.5
+param set-default PP_LOOKAHD_GAIN 2.0
 param set-default PP_LOOKAHD_MAX 12
-param set-default PP_LOOKAHD_MIN 1.5
+param set-default PP_LOOKAHD_MIN 5.0
 
 # Companion-loss failsafe (see robot_nav/docs/safety.md §1.1)
 # Backup path: PX4 commander datalink failsafe — Hold/Loiter on GCS loss
