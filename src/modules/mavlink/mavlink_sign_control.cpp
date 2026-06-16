@@ -61,7 +61,12 @@ void MavlinkSignControl::start(int _instance_id, mavlink_status_t *_mavlink_stat
 			       mavlink_accept_unsigned_t accept_unsigned_callback)
 {
 	_mavlink_signing.link_id = _instance_id;
-	_mavlink_signing.flags = MAVLINK_SIGNING_FLAG_SIGN_OUTGOING;
+	// Do NOT force SIGN_OUTGOING here. The upstream (2026) default signed every
+	// outgoing message on every link with an all-zero key — pointless/insecure,
+	// and it runs sha256 + appends a 13-byte signature on the hot send path of
+	// every instance. We only enable signing once a real key is loaded (below /
+	// via SETUP_SIGNING). 0 = no outgoing signing until a key exists.
+	_mavlink_signing.flags = 0;
 	_mavlink_signing.accept_unsigned_callback = accept_unsigned_callback;
 	_is_signing_initialized = false;
 
@@ -103,6 +108,10 @@ void MavlinkSignControl::start(int _instance_id, mavlink_status_t *_mavlink_stat
 		}
 
 		_mavlink_signing.timestamp = 0;
+
+	} else {
+		// real key loaded -> sign outgoing messages
+		_mavlink_signing.flags = MAVLINK_SIGNING_FLAG_SIGN_OUTGOING;
 	}
 
 	// copy pointer of the signing to status struct
@@ -126,9 +135,11 @@ bool MavlinkSignControl::check_for_signing(const mavlink_message_t *msg)
 
 	if (setup_signing.initial_timestamp != 0 || !is_array_all_zeros(setup_signing.secret_key, MAVLINK_SECRET_KEY_LENGTH)) {
 		_is_signing_initialized = true;
+		_mavlink_signing.flags = MAVLINK_SIGNING_FLAG_SIGN_OUTGOING;
 
 	} else {
 		_is_signing_initialized = false;
+		_mavlink_signing.flags = 0;
 	}
 
 	write_key_and_timestamp();

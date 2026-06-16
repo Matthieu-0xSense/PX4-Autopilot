@@ -40,6 +40,7 @@ uint64 HEARTBEAT_TIMEOUT_US = 2500000       # Heartbeat timeout (tolerate missin
 # Heartbeats per type
 bool heartbeat_type_antenna_tracker         # MAV_TYPE_ANTENNA_TRACKER
 bool heartbeat_type_gcs                     # MAV_TYPE_GCS
+uint64 heartbeat_type_gcs_timestamp         # us since boot of last MAV_TYPE_GCS heartbeat (0 if never). Robot_nav patch: see external_modules/.../docs/px4_patches.md.
 bool heartbeat_type_onboard_controller      # MAV_TYPE_ONBOARD_CONTROLLER
 bool heartbeat_type_gimbal                  # MAV_TYPE_GIMBAL
 bool heartbeat_type_adsb                    # MAV_TYPE_ADSB

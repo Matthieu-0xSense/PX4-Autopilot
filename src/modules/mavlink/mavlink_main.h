@@ -712,6 +712,13 @@ private:
 	void find_broadcast_address();
 
 	void init_udp();
+
+#if defined(CONFIG_NET) && defined(CONFIG_NETDEV_PHY_IOCTL)
+	/**
+	 * Block until the ethernet PHY reports link-up (or the module is asked to exit).
+	 */
+	void wait_for_ethernet_link();
+#endif // CONFIG_NET && CONFIG_NETDEV_PHY_IOCTL
 #endif // MAVLINK_UDP
 
 

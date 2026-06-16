@@ -46,6 +46,9 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netutils/netlib.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <nuttx/net/mii.h>
 #endif
 
 #include <containers/LockGuard.hpp>
@@ -1018,6 +1021,55 @@ const in_addr Mavlink::compute_broadcast_addr(const in_addr &host_addr, const in
 
 	return broadcast_addr;
 }
+
+#if defined(CONFIG_NET) && defined(CONFIG_NETDEV_PHY_IOCTL)
+void Mavlink::wait_for_ethernet_link()
+{
+	const char *ifname = (_interface_name != nullptr) ? _interface_name : "eth0";
+
+	int sd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	if (sd < 0) {
+		PX4_WARN("link check socket failed: %s", strerror(errno));
+		return;
+	}
+
+	bool warned = false;
+
+	while (!should_exit()) {
+		struct ifreq ifr;
+		memset(&ifr, 0, sizeof(ifr));
+		strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
+
+		if (ioctl(sd, SIOCGMIIPHY, (unsigned long)&ifr) < 0) {
+			// no PHY ioctl support on this interface: don't hold up startup
+			PX4_WARN("%s: PHY ioctl unsupported, skipping link wait", ifname);
+			break;
+		}
+
+		ifr.ifr_mii_reg_num = MII_MSR;
+
+		if ((ioctl(sd, SIOCGMIIREG, (unsigned long)&ifr) == 0) &&
+		    ((ifr.ifr_mii_val_out & MII_MSR_LINKSTATUS) != 0)) {
+
+			if (warned) {
+				PX4_INFO("%s: link up", ifname);
+			}
+
+			break;
+		}
+
+		if (!warned) {
+			PX4_WARN("%s: waiting for link", ifname);
+			warned = true;
+		}
+
+		px4_usleep(100000);
+	}
+
+	close(sd);
+}
+#endif // CONFIG_NET && CONFIG_NETDEV_PHY_IOCTL
 
 void Mavlink::init_udp()
 {
@@ -2411,6 +2463,13 @@ Mavlink::task_main(int argc, char *argv[])
 
 	/* init socket if necessary */
 	if (get_protocol() == Protocol::UDP) {
+#if defined(CONFIG_NET) && defined(CONFIG_NETDEV_PHY_IOCTL)
+		// Wait for the ethernet PHY link before touching the socket: sendto() on a
+		// link-down interface can block indefinitely in the ENET driver (PHY-provided
+		// TX clock missing), wedging this task with an unstoppable instance.
+		// On should_exit() the wait aborts and the main loop below exits normally.
+		wait_for_ethernet_link();
+#endif // CONFIG_NET && CONFIG_NETDEV_PHY_IOCTL
 		init_udp();
 	}
 
@@ -3025,7 +3084,7 @@ Mavlink::start(int argc, char *argv[])
 	px4_task_spawn_cmd("mavlink_main",
 			   SCHED_DEFAULT,
 			   SCHED_PRIORITY_DEFAULT,
-			   PX4_STACK_ADJUSTED(2896) + MAVLINK_NET_ADDED_STACK,
+			   PX4_STACK_ADJUSTED(4608) + MAVLINK_NET_ADDED_STACK,
 			   (px4_main_t)&Mavlink::start_helper,
 			   (char *const *)argv);
 
