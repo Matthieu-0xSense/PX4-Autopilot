@@ -75,7 +75,13 @@
 #endif
 
 #ifdef CONFIG_NET
-#define MAVLINK_NET_ADDED_STACK PX4_STACK_ADJUSTED(350)
+// robot_nav: was PX4_STACK_ADJUSTED(350). The ethernet companion instance
+// (mavlink_if2: Onboard streams + MAV_2_FORWARD + a 302-WP mission's events)
+// overflowed its task stack (fault log: User stack used==size==0x12f0) ->
+// UsageFault undefined-instruction -> repeated FMU hard-faults/reboots
+// (2026-06-18 fault_*.log cluster, all in mavlink_ifN). Bump the net-instance
+// stack headroom. See docs/px4_changes.md.
+#define MAVLINK_NET_ADDED_STACK PX4_STACK_ADJUSTED(2048)
 #else
 #define MAVLINK_NET_ADDED_STACK 0
 #endif

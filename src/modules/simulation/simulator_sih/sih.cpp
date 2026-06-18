@@ -490,14 +490,19 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 	// rate matches true Ackermann (tan(d)*v/wb), not the small-angle linear
 	// approximation (d*v/wb). At 75 deg the linear form under-turns ~2.85x
 	// (sim radius wb/d ~2.16 m vs real wb/tan(d) ~0.76 m). See docs/px4_changes.md.
-	// Cap tan(delta) for SIH stability. The dynamic bicycle model's yaw moment
-	// (WHEEL_BASE*C*tan_delta) is violent at large steer for a 2.8 m/300 kg body
-	// -> the 250 Hz integration + EKF go marginally unstable and some runs
-	// diverge. Cap at 1.5 (~56 deg, sim turn radius wb/1.5 ~1.9 m) to keep the
-	// forces near the stable small-angle regime. SITL then turns WIDER than the
-	// real 0.76 m rover: verify absolute turn radius on the bench/real; use SITL
-	// to tune tracking + oscillation behaviour. SITL-only physics.
-	const float tan_delta = math::min(tanf(delta), 1.5f);
+	// robot_nav: tan(delta) cap raised 1.5 -> tan(75 deg)=3.73 so the SIH min
+	// turn radius matches the real rover (wb/tan75 ~0.76 m) instead of the old
+	// ~1.9 m. The 1.9 m sim radius could not make the mission's tight headland
+	// turns -> WP overshoot/missed-WP abort, so a complete mission was never
+	// testable on the bench. The 3.73 cap is just the natural tanf(75 deg) (delta
+	// maxes at MAX_STEER_ANGLE); 3.8 is only a NaN/overflow guard. The lateral
+	// force is still physically bounded by the friction clamp (mu_s*m*g) below.
+	// CAVEAT: the old 1.5 cap existed because the yaw moment is violent at large
+	// steer (~16 vs ~8 rad/s^2) and the 250 Hz integration + EKF could go
+	// marginally unstable at the old 300 kg config. Verified on the SITL steering
+	// test after this change; if a run diverges (NaN/EKF), sub-step the dynamics
+	// integration rather than re-capping. See docs/px4_changes.md. SITL-only physics.
+	const float tan_delta = math::min(tanf(delta), 3.8f);
 	const float F_x = MAX_THROTTLE_FORCE * throttle_cmd;         // [N] Throttle force
 
 	// --- Compute forces and moments ---
