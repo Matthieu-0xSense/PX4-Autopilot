@@ -115,3 +115,7 @@ _emscripten_sdk/
 
 # virtual Python environment
 .venv
+
+# 0xSense rover airframe: single source is robot_nav/airframes/, copied at
+# build time by robot_nav/scripts/sync_airframe.sh (never tracked here -> no drift)
+ROMFS/px4fmu_common/init.d/airframes/51003_ackermann_0xsense
