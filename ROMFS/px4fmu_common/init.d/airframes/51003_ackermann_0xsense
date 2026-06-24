@@ -77,13 +77,8 @@ param set-default RO_YAW_ACCEL_LIM  80      # [deg/s2] snap into the turn
 # ── Speed control (4.9 km/h field rover) ───────────────────────────────
 param set-default RO_MAX_THR_SPEED  1.4     # top speed at full throttle [m/s] (4.9 km/h)
 param set-default RO_SPEED_LIM      1.3     # cruise [m/s]
-# Speed loop must be closed, not pure feed-forward. With P/I≈0 the throttle is
-# just speed_sp/RO_MAX_THR_SPEED; if the real VCU's throttle->speed gain differs
-# from RO_MAX_THR_SPEED the rover over/under-speeds with no correction -> turn
-# radius v/ω diverges -> pure-pursuit orbits. Non-zero P/I regulates to setpoint.
-# Starting values from the HITL fix (2026-06-18); tune on the real vehicle.
-param set-default RO_SPEED_P        0.5
-param set-default RO_SPEED_I        0.5
+param set-default RO_SPEED_P        0.001
+param set-default RO_SPEED_I        0.001
 param set-default RO_ACCEL_LIM      0.5
 param set-default RO_DECEL_LIM      0.5
 # Corner slowdown: how hard PX4 drops speed at sharp transitions so the rover
@@ -102,9 +97,6 @@ param set-default SDLOG_MODE       2
 # Default (1) is enough for bring-up; add 2 / 32 if needed for deeper
 # investigation. 35 is heavy on SD bandwidth.
 param set-default SDLOG_PROFILE    1
-# SDLOG_BACKEND bitmask: 1=SD card, 2=mavlink. Must be non-zero or the logger
-# never starts (bench SD-bus test left it 0 -> no logs). 1 = SD only.
-param set-default SDLOG_BACKEND    1
 
 # ── Autonomous-only (no RC, no battery monitor yet) ────────────────────
 # Rover is driven by companion + VCU, never by RC sticks. Disable RC input
@@ -123,18 +115,6 @@ param set-default CBRK_SUPPLY_CHK   894281
 # field flight, power off USB anyway.
 param set-default CBRK_USB_CHK      197848
 
-# Allow arming with a hardfault/watchdog file present on the SD card. Bench
-# units accumulate these from prior crashes; without this the commander
-# refuses to arm. Default firmware value is 1 (deny). Clear the SD card files
-# once root cause is understood.
-param set-default COM_ARM_HFLT_CHK  0
-
-# Disable the imbalanced-propeller failure detector. It is a multirotor check;
-# a ground rover has no propellers, so it false-triggers at arm -> repeated
-# CRITICAL "Imbalanced propeller" events that flooded the mavlink-eth task and
-# rebooted the FMU. 0 = disabled. Correct for production (rover never has props).
-param set-default FD_IMB_PROP_THR   0
-
 # ── Pure pursuit ───────────────────────────────────────────────────────
 # Lookahead L = GAIN × speed, clamped [MIN,MAX]. Long enough to track the line
 # smoothly, short enough to make the tight headland U-turn (turn radius
@@ -144,57 +124,45 @@ param set-default FD_IMB_PROP_THR   0
 # rover (SIH stability cap) -> re-check on the real robot; it may want shorter.
 param set-default PP_LOOKAHD_GAIN   2.0
 param set-default PP_LOOKAHD_MAX    12
-# Real-robot turn radius ~0.76 m; lookahead floor just above it (1.3x margin).
-# SITL sweep on test_boustro_spawn (sih.cpp tan_delta cap raised to the real
-# radius) picked 1.0: straight-line xte 0.18 m, no orbit, lowest oscillation;
-# 0.8 oscillates more, >=1.5 cuts corners. Was 5.0 (old wide ~1.9 m SIH radius)
-# which aimed past corners and circled.
-param set-default PP_LOOKAHD_MIN    1.0
+param set-default PP_LOOKAHD_MIN    5.0
 
 # Waypoint acceptance: drive TO the turn waypoint, do not cut the corner wide.
 # RA_ACC_RAD_MAX caps the auto corner-cut growth (scaled off min turn radius).
-# NAV_ACC_RAD must exceed the line-tracking crosstrack, else the rover flies past
-# a straight-row waypoint at its normal crosstrack offset, never enters the circle,
-# the navigator never advances, and the ROV_MISS latch aborts (HITL 2026-06-18:
-# crosstrack ~0.56 m > old 0.5 m radius -> missed WP14). Keep radius > crosstrack.
-param set-default NAV_ACC_RAD       1.0
+param set-default NAV_ACC_RAD       0.5
 param set-default RA_ACC_RAD_GAIN   2
-param set-default RA_ACC_RAD_MAX    2.0
+param set-default RA_ACC_RAD_MAX    1.0
 
-# ── MAVLink instance 2 = companion over UDP/Ethernet @ 14550 ──
+# ── MAVLink instance 2 = onboard companion over UDP/Ethernet @ 14550 ──
+# Onboard mode = full datarate + hi-res telemetry streams.
+#
 # Ethernet IP itself is NOT a PX4 parameter — it lives in
 # /fs/microsd/net.cfg (see configs/net.cfg in this repo, dropped onto
 # each rover's SD card alongside extras.txt). MAV_2_CONFIG=1000 is
 # already in rc.board_defaults.
 param set-default MAV_2_CONFIG    1000
-# MODE 0 = Normal (NOT 2/Onboard). This is the upstream-hardfault MITIGATION.
-# The Onboard stream set (ATTITUDE 100Hz, HIGHRES_IMU 50Hz, LOCAL_POSITION/
-# ODOMETRY 30Hz, ...) drives a wild-write hardfault in the MAVLink stream-send /
-# uORB Subscription::update path — reproduced on pristine px4_fmu-v6xrt_default at
-# c4abeed3a4 AND latest main e24cda2fd9 (../px4_issue_attachments/, px4_changes.md).
-# Onboard crashed in ~8 min under load; Normal's ~10x lighter stream set runs far
-# longer (risk reduction, NOT a fix — the upstream bug still exists). The companion
-# connects ACTIVELY (udpout://10.41.10.1:14550, companion commit 08617bd) and uses
-# MAVSDK, requesting its own stream rates, so Normal-vs-Onboard is functionally
-# transparent for telemetry/logging. BROADCAST 0 (below) keeps broadcast OFF in
-# Normal mode too, so the old MODE-0 wedge vector (broadcast sendto() on a link-down
-# eth0 blocking in the ENET driver -> mavlink-eth wedged tx=0/txerr>0) CANNOT recur:
-# the FMU latches the peer from the first RX packet and never broadcasts. The
-# rover_can_bridge companion-loss watchdog is unaffected (keys on the companion->FMU
-# heartbeat RX). See docs/HW_setup.md §8.1.
+# MODE 0 = Normal (NOT 2/Onboard). CRITICAL for auto-connect: broadcast is
+# HARD-SKIPPED in Onboard mode (mavlink_main.cpp:818 `_mode != MAVLINK_MODE_ONBOARD`).
+# v1.17 has no MAV_2_REMOTE_IP, so a fresh-boot FMU in Onboard mode has no peer ->
+# no unicast AND no broadcast -> total silence; the companion (passive udpin:14540,
+# listen-only connect) never hears it and never connects -> WS feed dead until a
+# manual heartbeat prime. In Normal mode PX4 broadcasts to 10.41.10.255:14540
+# *until a GCS connects* (`!is_gcs_connected()`) and RESUMES on disconnect, so the
+# companion auto-connects regardless of boot order (FMU-faster-than-companion = the
+# normal case) and auto-recovers on restart. Broadcast stops once connected ->
+# steady-state is unicast only (no leak, no inflated txerr). Companion uses MAVSDK
+# standard telemetry and sets its own rates, so the Normal-vs-Onboard stream set is
+# transparent (validated on the SIH bench 2026-06-07). The rover_can_bridge
+# companion-loss watchdog is unaffected (it keys on the companion->FMU heartbeat RX).
 param set-default MAV_2_MODE      0
 param set-default MAV_2_RATE      1000000
 # Companion listens on UDP 14540 (rover_companion default).
 param set-default MAV_2_REMOTE_PRT 14540
 param set-default MAV_2_RADIO_CTL 0
-# FORWARD 0: companion is the only real peer, nothing to relay. Forwarding copies
-# every message received on another link into instance 2's TX path -> extra bytes
-# AND extra on-stack serialize work in the mavlink_if<N> task (the same task that
-# hardfaults). Off trims that load. (Was 1.)
-param set-default MAV_2_FORWARD   0
-# Broadcast=0: companion connects actively (udpout), so the FMU needs no
-# broadcast. Keeping it off also prevents the link-down-eth0 broadcast wedge.
-param set-default MAV_2_BROADCAST 0
+param set-default MAV_2_FORWARD   1
+# Broadcast=1: PX4 broadcasts to 10.41.10.255 while no GCS is connected (only
+# effective in Normal mode, see MAV_2_MODE above); companion's traffic then
+# latches the peer and PX4 switches to unicast.
+param set-default MAV_2_BROADCAST 1
 
 # ── CAN bus + bridge (UAVCAN_ENABLE + CAN_BRIDGE_EN set above) ─────────
 # MUST equal RA_MAX_STR_ANG (75°/1.31 rad). The bridge de-normalizes the
