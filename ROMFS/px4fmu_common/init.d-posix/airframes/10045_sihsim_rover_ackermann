@@ -77,7 +77,9 @@ param set-default RO_SPEED_RED 2.5
 
 # Pure Pursuit parameters. PP_LOOKAHD_MIN 1.0 (was 5.0 >> 2-3 m waypoint spacing
 # -> the rover circled the aim point instead of acquiring it; 51003/bench use 1.0).
-param set-default PP_LOOKAHD_GAIN 2.0
+# GAIN 1.5 (was 2.0): 2026-06-30 sweep picked it — turn-tracking rms -21% vs 2.0,
+# best objective; <=1.0 regresses. Mirror of 51003.
+param set-default PP_LOOKAHD_GAIN 1.5
 param set-default PP_LOOKAHD_MAX 12
 param set-default PP_LOOKAHD_MIN 1.0
 
