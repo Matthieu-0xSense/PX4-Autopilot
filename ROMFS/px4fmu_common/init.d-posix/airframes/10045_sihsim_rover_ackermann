@@ -22,15 +22,19 @@ param set-default SIH_VEHICLE_TYPE 5 # sih as rover ackermann
 
 param set-default PWM_MAIN_FUNC1 201 # Steering
 param set-default PWM_MAIN_FUNC2 101 # Throttle
-# 0xSense rover SIH physics (mirror of 51003 + bench_sih_config.txt). m=2500 (2.5T),
-# L=2.825, W=H=1.5. Pairs with sih.cpp WHEEL_BASE 2.825 / MAX_STEER_ANGLE 75deg.
-param set-default SIH_MASS 2500
-param set-default SIH_IXX 938
-param set-default SIH_IYY 2131
-param set-default SIH_IZZ 2131
+# 0xSense rover SIH physics (mirror of 51003 + bench_sih_config.txt). m=2850 (2.85T,
+# data sheet 2026-06-16). L=2.825, W=H=1.5. Pairs with sih.cpp WHEEL_BASE 2.825 /
+# MAX_STEER_ANGLE 75deg. SIH_KDV 21000 => full-throttle terminal
+# sqrt((50000-0.3*2850*9.81)/21000) ~= 1.41 m/s == RO_MAX_THR_SPEED 1.4 so the
+# speed feed-forward is self-consistent (was 12500 -> 1.85 m/s, a 1.85-vs-1.4
+# plant/FF mismatch that over-sped SITL into pure-pursuit orbits).
+param set-default SIH_MASS 2850
+param set-default SIH_IXX 1069
+param set-default SIH_IYY 2430
+param set-default SIH_IZZ 2430
 param set-default SIH_IXZ 0
-param set-default SIH_KDV 12500
-param set-default SIH_KDW 2500
+param set-default SIH_KDV 21000
+param set-default SIH_KDW 2850
 param set-default SIH_LOC_LAT0 47.62399800296214
 param set-default SIH_LOC_LON0 1.4193002806250288
 param set-default SIH_LOC_YAW0 -150.0    # Initial heading: 60° left of North
@@ -64,19 +68,18 @@ param set-default RO_DECEL_LIM 0.5
 param set-default RO_JERK_LIM 10
 param set-default RO_MAX_THR_SPEED 1.4
 param set-default RO_SPEED_LIM 1.3
-param set-default RO_SPEED_I 0.001
-param set-default RO_SPEED_P 0.001
+# Speed loop must be CLOSED (was P/I 0.001 = pure feed-forward). With KDV now
+# matched so the plant terminal == RO_MAX_THR_SPEED the FF is self-consistent,
+# but P/I 0.5 regulates out any residual (mirror of 51003 + bench_sih_config).
+param set-default RO_SPEED_I 0.5
+param set-default RO_SPEED_P 0.5
 param set-default RO_SPEED_RED 2.5
 
-# Pure Pursuit parameters
+# Pure Pursuit parameters. PP_LOOKAHD_MIN 1.0 (was 5.0 >> 2-3 m waypoint spacing
+# -> the rover circled the aim point instead of acquiring it; 51003/bench use 1.0).
 param set-default PP_LOOKAHD_GAIN 2.0
 param set-default PP_LOOKAHD_MAX 12
-param set-default PP_LOOKAHD_MIN 5.0
-
-# Pure Pursuit parameters
-param set-default PP_LOOKAHD_GAIN 2.0
-param set-default PP_LOOKAHD_MAX 12
-param set-default PP_LOOKAHD_MIN 5.0
+param set-default PP_LOOKAHD_MIN 1.0
 
 # Companion-loss failsafe (see robot_nav/docs/safety.md §1.1)
 # Backup path: PX4 commander datalink failsafe — Hold/Loiter on GCS loss
