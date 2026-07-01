@@ -91,6 +91,21 @@ void AckermannPosControl::updatePosControl()
 			}
 
 			_pure_pursuit_status_pub.publish(pure_pursuit_status);
+
+			// siza: surface crosstrack over the standard NAV_CONTROLLER_OUTPUT mavlink
+			// stream. AckermannAutoMode publishes position_controller_status with only
+			// acceptance_radius set; re-publish here with the pure-pursuit guidance
+			// fields filled (acceptance_radius preserved from the cached value). Runs at
+			// control-loop rate, so the stream is dominated by this full record.
+			position_controller_status_s pos_ctrl_status{};
+			pos_ctrl_status.timestamp = timestamp;
+			pos_ctrl_status.acceptance_radius = _acceptance_radius;
+			pos_ctrl_status.xtrack_error = pure_pursuit_status.crosstrack_error;
+			pos_ctrl_status.nav_bearing = pure_pursuit_status.target_bearing;    // commanded (lookahead) course
+			pos_ctrl_status.target_bearing = pure_pursuit_status.bearing_to_waypoint; // direct bearing to wp
+			pos_ctrl_status.wp_dist = pure_pursuit_status.distance_to_waypoint;
+			_position_controller_status_pub.publish(pos_ctrl_status);
+
 			rover_speed_setpoint_s rover_speed_setpoint{};
 			rover_speed_setpoint.timestamp = timestamp;
 			rover_speed_setpoint.speed_body_x = speed_setpoint;

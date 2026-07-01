@@ -106,6 +106,9 @@ private:
 	uORB::Publication<rover_speed_setpoint_s> _rover_speed_setpoint_pub{ORB_ID(rover_speed_setpoint)};
 	uORB::Publication<rover_attitude_setpoint_s> _rover_attitude_setpoint_pub{ORB_ID(rover_attitude_setpoint)};
 	uORB::Publication<pure_pursuit_status_s>     _pure_pursuit_status_pub{ORB_ID(pure_pursuit_status)};
+	// siza: mirror pure-pursuit crosstrack into position_controller_status so the
+	// standard NAV_CONTROLLER_OUTPUT mavlink stream carries it (companion datalog).
+	uORB::Publication<position_controller_status_s> _position_controller_status_pub{ORB_ID(position_controller_status)};
 
 	// Variables
 	Quatf _vehicle_attitude_quaternion{};
