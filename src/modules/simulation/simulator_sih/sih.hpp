@@ -323,6 +323,8 @@ private:
 		(ParamFloat<px4::params::SIH_L_ROLL>) _sih_l_roll,
 		(ParamFloat<px4::params::SIH_L_PITCH>) _sih_l_pitch,
 		(ParamFloat<px4::params::SIH_KDV>) _sih_kdv,
+		(ParamFloat<px4::params::SIH_ROV_CS>) _sih_rov_cs,
+		(ParamFloat<px4::params::SIH_ROV_MU>) _sih_rov_mu,
 		(ParamFloat<px4::params::SIH_KDW>) _sih_kdw,
 		(ParamFloat<px4::params::SIH_LOC_LAT0>) _sih_lat0,
 		(ParamFloat<px4::params::SIH_LOC_LON0>) _sih_lon0,

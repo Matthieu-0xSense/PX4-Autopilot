@@ -156,6 +156,37 @@ parameters:
       min: 0.0
       decimal: 2
       increment: 0.05
+    SIH_ROV_CS:
+      description:
+        short: Rover Ackermann cornering stiffness
+        long: |-
+          robot_nav (SITL-only physics): lateral cornering stiffness C [N/rad] of
+          the SIH Ackermann bicycle model. Lower = more understeer/slip (front
+          tyres make less lateral force per steer angle). Exposed so the tuning
+          harness can sweep the slip envelope (loose vs hard ground) live without
+          a firmware rebuild. Range bounded to the numerically-stable band: very
+          high C raises the large-steer yaw moment and can diverge the 250 Hz
+          integration / EKF. See docs/px4_changes.md + docs/rover_tuning.md.
+      type: float
+      default: 4167.0
+      min: 1500.0
+      max: 6000.0
+      decimal: 0
+      increment: 100.0
+    SIH_ROV_MU:
+      description:
+        short: Rover Ackermann tyre grip (static friction)
+        long: |-
+          robot_nav (SITL-only physics): static friction coefficient MU_S [-] of
+          the SIH Ackermann model. Caps both cornering (mu*N) and traction force.
+          Lower = earlier tyre saturation = skid/understeer in tight turns (models
+          loose surfaces). Kept >= kinetic MU_K (0.4). See docs/px4_changes.md.
+      type: float
+      default: 0.5
+      min: 0.4
+      max: 0.9
+      decimal: 2
+      increment: 0.05
     SIH_KDW:
       description:
         short: First order angular damper coefficient

@@ -475,8 +475,13 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 	static constexpr float MAX_THROTTLE_FORCE = 50000.0f;   // [N] 2.5 T (×8.33 from the 300 kg config; > ~12 kN static friction)
 	static constexpr float MAX_STEER_ANGLE = radians(75.f); // [rad] (= RA_MAX_STR_ANG 1.31; was 30°)
 	static constexpr float WHEEL_BASE = 2.825f;             // [m] front↔rear axle (= RA_WHEEL_BASE)
-	static constexpr float C = 4167.f;                      // [N/rad] Cornering stiffness (2.5 T, ×8.33 from 300 kg; keeps yaw-accel in the proven-stable ~8 rad/s^2 range)
-	static constexpr float MU_S = 0.5f;                     // [-] Static Coefficient of friction
+	// robot_nav: C (cornering stiffness) and MU_S (grip) exposed as SIH_ROV_CS /
+	// SIH_ROV_MU so the tuning harness can sweep slip/understeer live (loose vs
+	// hard ground) without a fw rebuild. Lower C = more understeer; lower MU_S =
+	// earlier tyre saturation = skid in tight turns. yaml bounds the range to the
+	// numerically-stable envelope (see the large-steer divergence caveat below).
+	const float C = _sih_rov_cs.get();                      // [N/rad] Cornering stiffness (default 4167: 2.5 T, keeps yaw-accel ~8 rad/s^2)
+	const float MU_S = _sih_rov_mu.get();                   // [-] Static Coefficient of friction (grip)
 	static constexpr float MU_K = 0.4f;                     // [-] Kinetic Coefficient of friction
 	static constexpr float MU_R = 0.3f;                     // [-] Rolling Coefficient of friction
 	static constexpr float ROLLING_THRESHOLD = 0.05f;       // [m/s] Threshold for rolling resistance
