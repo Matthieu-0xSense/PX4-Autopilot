@@ -2550,8 +2550,17 @@ MavlinkReceiver::handle_message_hil_gps(mavlink_message_t *msg)
 
 	gps.satellites_used = hil_gps.satellites_visible;
 
-	gps.heading = NAN;
-	gps.heading_offset = NAN;
+	// Dual-antenna GNSS moving-baseline heading, HITL path. Real moving-baseline
+	// receivers (ZED-F9P RELPOSNED / Ashtech / Femtomes) report an absolute yaw in
+	// sensor_gps.heading; that is the standstill-valid, drift-free heading source
+	// the rover relies on (EKF2_GPS_CTRL bit3). Mirror it here so the exact same
+	// GPS-yaw fusion + control path can be exercised in HITL by feeding HIL_GPS.yaw.
+	// HIL_GPS.yaw is cdeg, 0 = "not available", 36000 = north. heading_offset stays
+	// 0: the injected yaw is already the vehicle heading (GPS_YAW_OFFSET is applied
+	// on real hardware inside the driver, not here).
+	gps.heading = (hil_gps.yaw == 0) ? NAN
+		      : matrix::wrap_pi(math::radians((float)hil_gps.yaw * 1e-2f));
+	gps.heading_offset = 0.f;
 
 	gps.timestamp = hrt_absolute_time();
 

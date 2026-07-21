@@ -463,8 +463,14 @@ void SimulatorMavlink::handle_message_hil_gps(const mavlink_message_t *msg)
 
 			gps.satellites_used = hil_gps.satellites_visible;
 
-			gps.heading = NAN;
-			gps.heading_offset = NAN;
+			// Dual-antenna GNSS moving-baseline heading (HITL/SITL path). Mirror a
+			// real moving-baseline receiver so EKF2 GPS-yaw fusion (EKF2_GPS_CTRL
+			// bit3) is exercisable in simulation: map HIL_GPS.yaw (cdeg, 0 = "not
+			// available", 36000 = north) to sensor_gps.heading (rad). heading_offset
+			// 0 — the sim yaw is already the vehicle heading.
+			gps.heading = (hil_gps.yaw == 0) ? NAN
+				      : matrix::wrap_pi(math::radians((float)hil_gps.yaw * 1e-2f));
+			gps.heading_offset = 0.f;
 
 			_gps_prev = gps;
 

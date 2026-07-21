@@ -187,9 +187,20 @@ void SensorGpsSim::Run()
 		sensor_gps.cog_rad = atan2(gps_vel(1),
 					   gps_vel(0)); // Course over ground (NOT heading, but direction of movement), -PI..PI, (radians)
 		sensor_gps.timestamp_time_relative = 0;
-		sensor_gps.heading = NAN;
-		sensor_gps.heading_offset = NAN;
-		sensor_gps.heading_accuracy = 0;
+		// Simulate a dual-antenna moving-baseline receiver: emit the groundtruth
+		// yaw as GPS heading so EKF2 GPS-yaw fusion (EKF2_GPS_CTRL bit3) can be
+		// exercised on the SIH bench. Harmless when bit3 is off (EKF ignores it),
+		// so no gating param needed. lpos.heading is the SIH true yaw (rad, NED).
+		if (PX4_ISFINITE(lpos.heading)) {
+			sensor_gps.heading = lpos.heading; // already wrapped [-pi,pi] by SIH (Eulerf psi)
+			sensor_gps.heading_offset = 0.f;
+			sensor_gps.heading_accuracy = 0.02f; // ~1 deg, RTK moving-baseline grade
+
+		} else {
+			sensor_gps.heading = NAN;
+			sensor_gps.heading_offset = NAN;
+			sensor_gps.heading_accuracy = 0;
+		}
 		sensor_gps.automatic_gain_control = 0;
 		sensor_gps.jamming_state = 0;
 		sensor_gps.spoofing_state = 0;
