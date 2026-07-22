@@ -49,6 +49,8 @@
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
+#include <uORB/topics/rover_steering_setpoint.h>
+#include <uORB/topics/rover_throttle_setpoint.h>
 
 // Local includes
 #include "AckermannActControl/AckermannActControl.hpp"
@@ -121,6 +123,14 @@ private:
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	vehicle_control_mode_s _vehicle_control_mode{};
+
+	// Loiter-stop publications: a ground vehicle in AUTO_LOITER must STOP, not
+	// orbit the loiter point at cruise speed (robot_nav: safety pauses arrive as
+	// DO_REPOSITION -> AUTO_LOITER; the orbit defeated every pause in HITL and
+	// is wrong on the field too). Publish zero steering + throttle directly,
+	// same pattern as AckermannManualMode::manual().
+	uORB::Publication<rover_steering_setpoint_s> _rover_steering_setpoint_pub{ORB_ID(rover_steering_setpoint)};
+	uORB::Publication<rover_throttle_setpoint_s> _rover_throttle_setpoint_pub{ORB_ID(rover_throttle_setpoint)};
 
 	// Class instances
 	AckermannActControl  _ackermann_act_control{this};

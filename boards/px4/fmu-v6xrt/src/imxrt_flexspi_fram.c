@@ -30,6 +30,7 @@
 
 #include <nuttx/kmalloc.h>
 #include <nuttx/signal.h>
+#include <nuttx/irq.h>
 #include <nuttx/fs/fs.h>
 #include <nuttx/mtd/mtd.h>
 
@@ -498,10 +499,29 @@ static ssize_t imxrt_flexspi_fram_bwrite(struct mtd_dev_s *dev,
 
 	while (len) {
 		i = MIN(FRAM_PAGE_SIZE, len);
+		// RWW hard-fault fix (2026-07-22): the FRAM shares the FlexSPI with
+		// XIP code. FLEXSPI_SOFTWARE_RESET mid-transaction while ANY code
+		// (an ISR, another task) fetches from XIP flash hard-faults inside
+		// imxrt_flexspi_write_blocking (fault logs: commander_low_prio on
+		// every `param save`; params silently reverting for two days).
+		// Lock out interrupts for the page transaction so nothing can fetch
+		// from flash while the controller is being programmed/reset; the
+		// transfer path itself runs from ITCM (itcm_functions_includes.ld).
+		// One 256 B FRAM page is microseconds — acceptable IRQ latency.
+		// AN12564: AHB prefetch must be OFF while an IP command + SWRESET run
+		// on this controller — outstanding prefetch reads (from the AHB-mapped
+		// param reads just before a save) wedge the controller and the next
+		// register access hard-faults (imxrt_flexspi.c:914, every `param
+		// save`, 11 fault logs 2026-07-21/22). Critical section + ITCM keep
+		// the CPU off the bus; CONFIGURE_PREFETCH keeps the prefetcher off.
+		irqstate_t flags = enter_critical_section();
+		FLEXSPI_CONFIGURE_PREFETCH(priv->flexspi, false);
 		imxrt_flexspi_fram_write_enable(priv);
 		imxrt_flexspi_fram_page_program(priv, offset, src, i);
 		imxrt_flexspi_fram_wait_bus_busy(priv);
 		FLEXSPI_SOFTWARE_RESET(priv->flexspi);
+		FLEXSPI_CONFIGURE_PREFETCH(priv->flexspi, true);
+		leave_critical_section(flags);
 		offset += i;
 		len -= i;
 	}
@@ -528,12 +548,17 @@ static int imxrt_flexspi_fram_erase(struct mtd_dev_s *dev,
 	finfo("startblock: %08lx nblocks: %d\n", (long)startblock, (int)nblocks);
 
 	while (blocksleft-- > 0) {
-		/* Erase each sector */
+		/* Erase each sector. Same RWW guard as bwrite: no XIP fetch while the
+		 * shared FlexSPI is mid-command/reset (see comment there). */
 
+		irqstate_t flags = enter_critical_section();
+		FLEXSPI_CONFIGURE_PREFETCH(priv->flexspi, false);
 		imxrt_flexspi_fram_write_enable(priv);
 		imxrt_flexspi_fram_erase_sector(priv, startblock * FRAM_SECTOR_SIZE);
 		imxrt_flexspi_fram_wait_bus_busy(priv);
 		FLEXSPI_SOFTWARE_RESET(priv->flexspi);
+		FLEXSPI_CONFIGURE_PREFETCH(priv->flexspi, true);
+		leave_critical_section(flags);
 		startblock++;
 	}
 

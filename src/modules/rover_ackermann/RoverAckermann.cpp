@@ -103,10 +103,28 @@ void RoverAckermann::generateSetpoints()
 
 	switch (vehicle_status.nav_state) {
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_MISSION:
-	case vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER:
 	case vehicle_status_s::NAVIGATION_STATE_AUTO_RTL:
 		_auto_mode.autoControl();
 		break;
+
+	case vehicle_status_s::NAVIGATION_STATE_AUTO_LOITER: {
+			// Ground vehicle "loiter" = STOP. autoControl() here made the rover
+			// orbit the hold point at cruise speed — every safety/UI pause
+			// (DO_REPOSITION -> AUTO_LOITER) kept the vehicle moving (HITL
+			// missions 244-249; on the field only the VCU CAN override would
+			// stop it). Zero steering + throttle, same publish pattern as
+			// AckermannManualMode::manual().
+			rover_steering_setpoint_s steering{};
+			steering.timestamp = hrt_absolute_time();
+			steering.normalized_steering_setpoint = 0.f;
+			_rover_steering_setpoint_pub.publish(steering);
+			rover_throttle_setpoint_s throttle{};
+			throttle.timestamp = hrt_absolute_time();
+			throttle.throttle_body_x = 0.f;
+			throttle.throttle_body_y = 0.f;
+			_rover_throttle_setpoint_pub.publish(throttle);
+			break;
+		}
 
 	case vehicle_status_s::NAVIGATION_STATE_OFFBOARD:
 		_offboard_mode.offboardControl();

@@ -729,3 +729,11 @@
 *(.text._ZN13BatteryChecks16rtlEstimateCheckERK7ContextR6Reportf)
 *(.text.sigemptyset)
 *(.text.nx_read)
+/* RWW hard-fault fix (2026-07-22): FRAM param writes share the FlexSPI with
+ * XIP code. The whole write path must execute from ITCM so the driver never
+ * fetches its own instructions from the controller it is programming/resetting
+ * (fault: imxrt_flexspi_write_blocking in commander_low_prio on `param save`).
+ * Paired with the critical sections in imxrt_flexspi_fram.c. */
+*(.text.imxrt_flexspi_transfer_blocking*)
+*(.text.imxrt_flexspi_check_and_clear_error*)
+*(.text.imxrt_flexspi_fram_*)
