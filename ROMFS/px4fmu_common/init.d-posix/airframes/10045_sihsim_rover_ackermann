@@ -58,12 +58,15 @@ param set-default RO_YAW_RATE_P 0.3
 # AckermannPosControl/AutoMode clamp all corner slowdown (RO_SPEED_RED paths)
 # to min_speed = RA_WHEEL_BASE * RO_YAW_RATE_LIM / tan(RA_MAX_STR_ANG). At 90
 # that floor is 1.19 m/s vs 1.3 cruise, so hairpins were entered near full
-# speed (turn xte peaks 1.2-1.5 m). 45 -> 0.59 m/s floor; 2026-07-21 sweep:
+# speed (turn xte peaks 1.2-1.5 m). 60 -> 0.79 m/s floor. 2026-07-22: 45 was
+# tried first (best on sparse synthetic corners) but STALLS on production
+# dense-arc plans (mission 250 replay: start deadlock; arcs need >45 deg/s at
+# cruise) -> 60. 2026-07-21 sweep data (45):
 # corner peaks 1.21 -> 0.48-0.82 m (boustro), 1.23 -> 0.68-0.86 m (hairpin).
 # Do NOT go lower: the yaw-rate cap then widens turn ENTRY (radius = v/cap;
 # 30 deg/s measured worse). At any value, radius at floor speed = wb/tan(75)
 # = 0.76 m = min turn radius by construction.
-param set-default RO_YAW_RATE_LIM 45
+param set-default RO_YAW_RATE_LIM 60
 param set-default RO_YAW_ACCEL_LIM 80
 param set-default RO_YAW_DECEL_LIM 80
 param set-default RO_YAW_RATE_CORR 1
