@@ -55,23 +55,47 @@ DatamanClient::DatamanClient()
 		_fds.fd = _dataman_response_sub;
 		_fds.events = POLLIN;
 
-		hrt_abstime timestamp = hrt_absolute_time();
-
-		dataman_request_s request;
-		request.timestamp = timestamp;
-		request.request_type = DM_GET_ID;
-		request.client_id = CLIENT_ID_NOT_SET;
-
-		bool success = syncHandler(request, response, timestamp, 1000_ms);
-
-		if (success && (response.client_id > CLIENT_ID_NOT_SET)) {
-
-			_client_id = response.client_id;
-
-		} else {
+		if (!ensureClientId(1000_ms)) {
 			PX4_ERR("Failed to get client ID!");
 		}
 	}
+}
+
+bool DatamanClient::ensureClientId(hrt_abstime timeout)
+{
+	// Lazy (re-)registration — robot_nav patch re-applied 2026-07-22 (see
+	// robot_nav docs/px4_changes.md "lazy client-id re-registration"). The
+	// ctor's single DM_GET_ID loses the race against the multi-second dataman
+	// boot clear (DM_COMPAT bump / fresh card / 10k-item config); without this
+	// every later *Sync call fails instantly for the life of the process.
+	// Observed: mavlink mission uploads rejected (2026-06-13) and
+	// rover_can_bridge geofence=0 vertices + speed_zone stuck at 0
+	// (missions 250-253, 2026-07-22).
+	if (_client_id != CLIENT_ID_NOT_SET) {
+		return true;
+	}
+
+	if (_dataman_response_sub < 0) {
+		return false;
+	}
+
+	hrt_abstime timestamp = hrt_absolute_time();
+
+	dataman_request_s request;
+	request.timestamp = timestamp;
+	request.request_type = DM_GET_ID;
+	request.client_id = CLIENT_ID_NOT_SET;
+
+	dataman_response_s response{};
+	bool success = syncHandler(request, response, timestamp, timeout);
+
+	if (success && (response.client_id > CLIENT_ID_NOT_SET)) {
+		_client_id = response.client_id;
+		PX4_INFO("dataman client ID %" PRIu8 " acquired (lazy)", _client_id);
+		return true;
+	}
+
+	return false;
 }
 
 DatamanClient::~DatamanClient()
@@ -148,7 +172,7 @@ bool DatamanClient::syncHandler(const dataman_request_s &request, dataman_respon
 
 bool DatamanClient::readSync(dm_item_t item, uint32_t index, uint8_t *buffer, uint32_t length, hrt_abstime timeout)
 {
-	if (_client_id == CLIENT_ID_NOT_SET) {
+	if (!ensureClientId()) {
 		return false;
 	}
 
@@ -188,7 +212,7 @@ bool DatamanClient::readSync(dm_item_t item, uint32_t index, uint8_t *buffer, ui
 
 bool DatamanClient::writeSync(dm_item_t item, uint32_t index, uint8_t *buffer, uint32_t length, hrt_abstime timeout)
 {
-	if (_client_id == CLIENT_ID_NOT_SET) {
+	if (!ensureClientId()) {
 		return false;
 	}
 
@@ -227,7 +251,7 @@ bool DatamanClient::writeSync(dm_item_t item, uint32_t index, uint8_t *buffer, u
 
 bool DatamanClient::clearSync(dm_item_t item, hrt_abstime timeout)
 {
-	if (_client_id == CLIENT_ID_NOT_SET) {
+	if (!ensureClientId()) {
 		return false;
 	}
 

@@ -174,6 +174,14 @@ private:
 	bool syncHandler(const dataman_request_s &request, dataman_response_s &response,
 			 const hrt_abstime &start_time, hrt_abstime timeout);
 
+	/* Lazy client-id (re-)acquisition: the ctor's one-shot DM_GET_ID loses the
+	 * race against the multi-second dataman boot clear, leaving the client dead
+	 * for the process lifetime. Called from the ctor and at the top of every
+	 * *Sync path so a losing client re-registers on first real use. Async paths
+	 * keep their instant non-blocking guard. robot_nav patch, see
+	 * docs/px4_changes.md. */
+	bool ensureClientId(hrt_abstime timeout = 1000_ms);
+
 	State _state{State::Idle};
 	Request _active_request{};
 	uint8_t _response_status{};
