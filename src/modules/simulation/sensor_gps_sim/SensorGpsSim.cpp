@@ -116,15 +116,18 @@ void SensorGpsSim::Run()
 		vehicle_global_position_s gpos{};
 		_vehicle_global_position_sub.copy(&gpos);
 
-		// Correlated Markov process position noise (matching GZBridge model)
+		// Correlated Markov process position noise (matching GZBridge model).
+		// Amplitude from SIM_GPS_PNOISE (robot_nav: 0.8 default = upstream
+		// consumer-GPS model; 0.02 = RTK-like, see header).
+		const float pos_noise_amplitude = _sim_gps_pnoise.get();
 		_gps_pos_noise_n = _pos_markov_time * _gps_pos_noise_n +
-				   _pos_random_walk * generate_wgn() * _pos_noise_amplitude;
+				   _pos_random_walk * generate_wgn() * pos_noise_amplitude;
 
 		_gps_pos_noise_e = _pos_markov_time * _gps_pos_noise_e +
-				   _pos_random_walk * generate_wgn() * _pos_noise_amplitude;
+				   _pos_random_walk * generate_wgn() * pos_noise_amplitude;
 
 		_gps_pos_noise_d = _pos_markov_time * _gps_pos_noise_d +
-				   _pos_random_walk * generate_wgn() * _pos_noise_amplitude * 1.5f;
+				   _pos_random_walk * generate_wgn() * pos_noise_amplitude * 1.5f;
 
 		const double latitude = gpos.lat + math::degrees((double)_gps_pos_noise_n / CONSTANTS_RADIUS_OF_EARTH);
 		const double longitude = gpos.lon + math::degrees((double)_gps_pos_noise_e / CONSTANTS_RADIUS_OF_EARTH);
@@ -155,8 +158,11 @@ void SensorGpsSim::Run()
 			sensor_gps.fix_type = 3; // 3D fix
 			sensor_gps.s_variance_m_s = 0.4f;
 			sensor_gps.c_variance_rad = 0.1f;
-			sensor_gps.eph = 0.9f;
-			sensor_gps.epv = 1.78f;
+			// Advertised accuracy tracks the configured noise so the EKF
+			// weights the sim GPS like the modeled receiver (0.9 m at the
+			// 0.8 default, ~3 cm at the RTK-like 0.02).
+			sensor_gps.eph = math::max(0.03f, _sim_gps_pnoise.get() * 1.1f);
+			sensor_gps.epv = math::max(0.06f, _sim_gps_pnoise.get() * 2.2f);
 			sensor_gps.hdop = 0.7f;
 			sensor_gps.vdop = 1.1f;
 

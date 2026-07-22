@@ -93,7 +93,11 @@ private:
 	float _gps_vel_noise_d{0.0f};
 
 	// Gauss-Markov noise parameters, rate-corrected from GZBridge (30 Hz) to SIH (8 Hz)
-	static constexpr float _pos_noise_amplitude{0.8f};
+	// robot_nav: position amplitude is now SIM_GPS_PNOISE (default keeps the
+	// upstream 0.8 m consumer-GPS model). The 0xSense rover runs RTK (~2 cm);
+	// the hardcoded 0.8 m put a ±0.3-0.5 m floor under every SITL/HITL
+	// crosstrack measurement (missions 250/252 on-path xte was pure sim-GPS
+	// noise, sample-to-sample delta > signal). Set 0.02 for RTK-like runs.
 	static constexpr float _pos_random_walk{0.02f};
 	static constexpr float _pos_markov_time{0.76f};
 	static constexpr float _vel_noise_amplitude{0.05f};
@@ -101,6 +105,7 @@ private:
 	static constexpr float _vel_markov_time{0.54f};
 
 	DEFINE_PARAMETERS(
-		(ParamInt<px4::params::SIM_GPS_USED>) _sim_gps_used
+		(ParamInt<px4::params::SIM_GPS_USED>) _sim_gps_used,
+		(ParamFloat<px4::params::SIM_GPS_PNOISE>) _sim_gps_pnoise
 	)
 };

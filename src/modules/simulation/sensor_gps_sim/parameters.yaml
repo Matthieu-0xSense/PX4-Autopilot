@@ -22,3 +22,19 @@ parameters:
       default: 10
       min: 0
       max: 50
+    SIM_GPS_PNOISE:
+      description:
+        short: Simulated GPS position noise amplitude
+        long: |-
+          robot_nav: Gauss-Markov position-noise amplitude [m] of the simulated
+          GPS (was a hardcoded 0.8 — a consumer-GPS model). The advertised
+          eph/epv scale with it so the EKF weights the fix accordingly.
+          0.8 = upstream default; 0.02 = RTK-like (0xSense rover). The 0.8
+          default put a +/-0.3-0.5 m floor under every SITL/HITL crosstrack
+          measurement (missions 250/252).
+      type: float
+      default: 0.8
+      min: 0.0
+      max: 5.0
+      decimal: 3
+      increment: 0.01

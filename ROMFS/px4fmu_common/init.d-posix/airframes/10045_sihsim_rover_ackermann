@@ -42,6 +42,16 @@ param set-default SIH_LOC_YAW0 -150.0    # Initial heading: 60° left of North
 param set-default SENS_EN_GPSSIM 1
 param set-default SENS_EN_BAROSIM 1
 param set-default SENS_EN_MAGSIM 1
+# RTK-like sim GPS (rover runs RTK, ~2 cm). The upstream 0.8 m consumer-GPS
+# noise model floored every SITL crosstrack at +/-0.3-0.5 m (missions 250/252:
+# on-path xte was pure sim noise — sample-to-sample delta exceeded the signal).
+param set-default SIM_GPS_PNOISE 0.02
+# EKF observation floor must follow: with the default EKF2_GPS_P_NOISE 0.5 the
+# EKF ignores the clean GPS and wanders 0.3-0.9 m off it (measured 2026-07-22);
+# 0.05 halves the EKF-vs-GPS error to ~0.13 m rms. NOTE: 51003 (real RTK,
+# ~2 cm) also runs the 0.5 default -> same wander on the REAL rover; candidate
+# field improvement, validate on bench first.
+param set-default EKF2_GPS_P_NOISE 0.05
 
 # Ackermann Parameters (0xSense rover tune, mirror of 51003 — data sheet:
 # 75deg max steer, 2.825 m wheelbase, 4.9 km/h. min turn radius wb/tan75 ~0.76 m)
