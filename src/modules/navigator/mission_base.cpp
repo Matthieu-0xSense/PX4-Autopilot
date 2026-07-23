@@ -937,7 +937,12 @@ void MissionBase::publish_navigator_mission_item()
 	navigator_mission_item.longitude = _mission_item.lon;
 	navigator_mission_item.altitude = _mission_item.altitude;
 
-	navigator_mission_item.time_inside = get_time_inside(_mission_item);
+	// robot_nav: publish the raw item value, not get_time_inside() — that
+	// helper zeroes time_inside for non-rotary-wing waypoints, which strips
+	// the zone tag (TURN/WORK/TRANSIT) the mission builder stores there.
+	// This topic is logging/telemetry only; rover_can_bridge subscribes to
+	// it as the dataman-free zone source. See docs/px4_changes.md.
+	navigator_mission_item.time_inside = _mission_item.time_inside;
 	navigator_mission_item.acceptance_radius = _mission_item.acceptance_radius;
 	navigator_mission_item.loiter_radius = _mission_item.loiter_radius;
 	navigator_mission_item.yaw = _mission_item.yaw;
