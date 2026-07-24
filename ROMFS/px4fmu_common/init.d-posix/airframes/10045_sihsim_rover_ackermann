@@ -24,16 +24,19 @@ param set-default PWM_MAIN_FUNC1 201 # Steering
 param set-default PWM_MAIN_FUNC2 101 # Throttle
 # 0xSense rover SIH physics (mirror of 51003 + bench_sih_config.txt). m=2850 (2.85T,
 # data sheet 2026-06-16). L=2.825, W=H=1.5. Pairs with sih.cpp WHEEL_BASE 2.825 /
-# MAX_STEER_ANGLE 75deg. SIH_KDV 21000 => full-throttle terminal
-# sqrt((50000-0.3*2850*9.81)/21000) ~= 1.41 m/s == RO_MAX_THR_SPEED 1.4 so the
+# MAX_STEER_ANGLE 75deg. SIH_KDV 1160 => full-throttle terminal
+# sqrt((3700-0.05*2850*9.81)/1160) ~= 1.41 m/s == RO_MAX_THR_SPEED 1.4 so the
 # speed feed-forward is self-consistent (was 12500 -> 1.85 m/s, a 1.85-vs-1.4
 # plant/FF mismatch that over-sped SITL into pure-pursuit orbits).
+# 2026-07-24: KDV 21000 -> 1160, pairs with the sih.cpp realistic-accel patch
+# (MAX_THROTTLE_FORCE 50000->3700, MU_R 0.3->0.05): same terminal speed, launch
+# accel capped ~0.81 m/s^2 (was ~17.5 available -> 1.85 m/s start spike).
 param set-default SIH_MASS 2850
 param set-default SIH_IXX 1069
 param set-default SIH_IYY 2430
 param set-default SIH_IZZ 2430
 param set-default SIH_IXZ 0
-param set-default SIH_KDV 21000
+param set-default SIH_KDV 1160
 param set-default SIH_KDW 2850
 param set-default SIH_LOC_LAT0 47.62399800296214
 param set-default SIH_LOC_LON0 1.4193002806250288

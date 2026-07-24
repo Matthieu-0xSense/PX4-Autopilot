@@ -472,7 +472,18 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 	// MAX_THROTTLE_FORCE scaled with SIH_MASS (×15: 20→300 kg) to preserve the
 	// validated accel/terminal-speed profile. See docs/px4_changes.md +
 	// docs/rover_tuning.md. NOTE: these are compile-time — rebuild the bench fw.
-	static constexpr float MAX_THROTTLE_FORCE = 50000.0f;   // [N] 2.5 T (×8.33 from the 300 kg config; > ~12 kN static friction)
+	// robot_nav 2026-07-24: force/friction re-derived for realistic ACCEL, not
+	// just terminal speed. The old 50 kN + MU_R 0.3 + KDV 21000 combo hit the
+	// right 1.41 m/s top speed but left ~17.5 m/s² of accel authority — with the
+	// linear throttle→speed feed-forward (throttle = v_sp/RO_MAX_THR_SPEED) vs
+	// this sqrt-shaped plant, mission start spiked to 1.85 m/s in ~1 s (limit
+	// 1.3, RO_ACCEL_LIM 0.5), blew the first corner ~2.2 m wide and missed the
+	// waypoint (mission 265 abort). The old μ values are box-on-ground sliding
+	// friction; a rover ROLLS, so longitudinal resistance is rolling-scale.
+	// New set: launch accel (3700−μR·m·g)/m ≈ 0.81 m/s², terminal
+	// sqrt((3700−μR·m·g)/KDV) = 1.41 m/s with SIH_KDV 1160 (bench_sih_config.txt
+	// + 10045 airframe MUST match). Lateral grip (MU_S, cornering C) unchanged.
+	static constexpr float MAX_THROTTLE_FORCE = 3700.0f;    // [N] ≈ μR·m·g + m·0.81 m/s² (realistic drive force, 2.85 T)
 	static constexpr float MAX_STEER_ANGLE = radians(75.f); // [rad] (= RA_MAX_STR_ANG 1.31; was 30°)
 	static constexpr float WHEEL_BASE = 2.825f;             // [m] front↔rear axle (= RA_WHEEL_BASE)
 	// robot_nav: C (cornering stiffness) and MU_S (grip) exposed as SIH_ROV_CS /
@@ -482,8 +493,8 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 	// numerically-stable envelope (see the large-steer divergence caveat below).
 	const float C = _sih_rov_cs.get();                      // [N/rad] Cornering stiffness (default 4167: 2.5 T, keeps yaw-accel ~8 rad/s^2)
 	const float MU_S = _sih_rov_mu.get();                   // [-] Static Coefficient of friction (grip)
-	static constexpr float MU_K = 0.4f;                     // [-] Kinetic Coefficient of friction
-	static constexpr float MU_R = 0.3f;                     // [-] Rolling Coefficient of friction
+	static constexpr float MU_K = 0.06f;                    // [-] Kinetic (breakaway) resistance — rolling wheels, not a sliding box (was 0.4)
+	static constexpr float MU_R = 0.05f;                    // [-] Rolling resistance, firm field ground (was 0.3)
 	static constexpr float ROLLING_THRESHOLD = 0.05f;       // [m/s] Threshold for rolling resistance
 	static constexpr float STATIC_THRESHOLD = 0.01f;        // [m/s] Threshold for static resistance
 
@@ -541,7 +552,11 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 	Vector3f F_a = Vector3f(0.f, 0.f, 0.f); // [N] Aerodynamic force (neglect until rover is rolling)
 
 	if (_v_E.norm() < STATIC_THRESHOLD) { // Static friction
-		Vector3f F_f_B = Vector3f(sign(F_x) * math::min(fabsf(F_x), MU_S * _MASS * 9.81f), sign(F_y) * math::min(fabsf(F_y),
+		// robot_nav: longitudinal (x) breakaway is rolling-scale (driven wheels
+		// roll — the drive force must NOT need to beat MU_S·m·g ≈ 14 kN to
+		// launch, that was only true for the old 50 kN force). Lateral (y) keeps
+		// the full static grip so the parked rover does not slide sideways.
+		Vector3f F_f_B = Vector3f(sign(F_x) * math::min(fabsf(F_x), MU_R * _MASS * 9.81f), sign(F_y) * math::min(fabsf(F_y),
 					  MU_S * _MASS * 9.81f), 0.f);
 		F_f = _q_E.rotateVector(F_f_B);
 
