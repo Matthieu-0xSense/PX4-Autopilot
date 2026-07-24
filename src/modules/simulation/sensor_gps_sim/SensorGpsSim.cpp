@@ -129,9 +129,31 @@ void SensorGpsSim::Run()
 		_gps_pos_noise_d = _pos_markov_time * _gps_pos_noise_d +
 				   _pos_random_walk * generate_wgn() * pos_noise_amplitude * 1.5f;
 
-		const double latitude = gpos.lat + math::degrees((double)_gps_pos_noise_n / CONSTANTS_RADIUS_OF_EARTH);
-		const double longitude = gpos.lon + math::degrees((double)_gps_pos_noise_e / CONSTANTS_RADIUS_OF_EARTH);
-		const double altitude = (double)(gpos.alt + _gps_pos_noise_d);
+		// Antenna lever arm: emit the measurement at the antenna position, not
+		// the body origin. EKF2 removes this exact offset again (via
+		// vehicle_gps_position.antenna_offset_* from SENS_GPS0_OFF*), so the
+		// two must agree — see header comment on the SENS_GPS0_OFF* params.
+		Vector3f lever_ned{};
+		Vector3f lever_vel_ned{};
+		const Vector3f r_ant{_sens_gps0_offx.get(), _sens_gps0_offy.get(), _sens_gps0_offz.get()};
+
+		if (r_ant.norm_squared() > 0.f) {
+			vehicle_attitude_s att{};
+			vehicle_angular_velocity_s ang{};
+
+			if (_vehicle_attitude_sub.copy(&att) && _vehicle_angular_velocity_sub.copy(&ang)) {
+				const Quatf q{att.q};
+				const Vector3f omega{ang.xyz};
+				lever_ned = q.rotateVector(r_ant);
+				lever_vel_ned = q.rotateVector(omega % r_ant);
+			}
+		}
+
+		const double latitude = gpos.lat + math::degrees((double)(_gps_pos_noise_n + lever_ned(0)) /
+					CONSTANTS_RADIUS_OF_EARTH);
+		const double longitude = gpos.lon + math::degrees((double)(_gps_pos_noise_e + lever_ned(1)) /
+					 (CONSTANTS_RADIUS_OF_EARTH * cos(math::radians(gpos.lat))));
+		const double altitude = (double)(gpos.alt + _gps_pos_noise_d - lever_ned(2));
 
 		_gps_vel_noise_n = _vel_markov_time * _gps_vel_noise_n +
 				   _vel_noise_density * generate_wgn() * _vel_noise_amplitude;
@@ -142,7 +164,8 @@ void SensorGpsSim::Run()
 		_gps_vel_noise_d = _vel_markov_time * _gps_vel_noise_d +
 				   _vel_noise_density * generate_wgn() * _vel_noise_amplitude * 1.2f;
 
-		const Vector3f gps_vel = Vector3f{lpos.vx + _gps_vel_noise_n, lpos.vy + _gps_vel_noise_e, lpos.vz + _gps_vel_noise_d};
+		const Vector3f gps_vel = Vector3f{lpos.vx + _gps_vel_noise_n, lpos.vy + _gps_vel_noise_e, lpos.vz + _gps_vel_noise_d}
+					 + lever_vel_ned;
 
 		// device id
 		device::Device::DeviceId device_id;

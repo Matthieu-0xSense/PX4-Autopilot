@@ -43,6 +43,8 @@
 #include <uORB/SubscriptionInterval.hpp>
 #include <uORB/topics/parameter_update.h>
 #include <uORB/topics/sensor_gps.h>
+#include <uORB/topics/vehicle_angular_velocity.h>
+#include <uORB/topics/vehicle_attitude.h>
 #include <uORB/topics/vehicle_global_position.h>
 #include <uORB/topics/vehicle_local_position.h>
 
@@ -79,6 +81,8 @@ private:
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};
 	uORB::Subscription _vehicle_global_position_sub{ORB_ID(vehicle_global_position_groundtruth)};
 	uORB::Subscription _vehicle_local_position_sub{ORB_ID(vehicle_local_position_groundtruth)};
+	uORB::Subscription _vehicle_attitude_sub{ORB_ID(vehicle_attitude_groundtruth)};
+	uORB::Subscription _vehicle_angular_velocity_sub{ORB_ID(vehicle_angular_velocity_groundtruth)};
 
 	uORB::PublicationMulti<sensor_gps_s> _sensor_gps_pub{ORB_ID(sensor_gps)};
 
@@ -106,6 +110,16 @@ private:
 
 	DEFINE_PARAMETERS(
 		(ParamInt<px4::params::SIM_GPS_USED>) _sim_gps_used,
-		(ParamFloat<px4::params::SIM_GPS_PNOISE>) _sim_gps_pnoise
+		(ParamFloat<px4::params::SIM_GPS_PNOISE>) _sim_gps_pnoise,
+		// Antenna lever arm (Sujet 6: companion sets SENS_GPS0_OFFY from the UI
+		// track sliders). The sim must place the measurement AT the antenna —
+		// EKF2 subtracts this same offset (vehicle_gps_position.antenna_offset_*
+		// -> pos_body). Simulating at the body origin while the EKF compensates
+		// a 1.13 m lever arm injects an omega x r velocity error (~1 m/s at
+		// headland yaw rates) -> persistent GNSS velocity innovation failures ->
+		// EKF-GSF emergency yaw reset -> "Compass 0 fault" abort (mission 267).
+		(ParamFloat<px4::params::SENS_GPS0_OFFX>) _sens_gps0_offx,
+		(ParamFloat<px4::params::SENS_GPS0_OFFY>) _sens_gps0_offy,
+		(ParamFloat<px4::params::SENS_GPS0_OFFZ>) _sens_gps0_offz
 	)
 };
