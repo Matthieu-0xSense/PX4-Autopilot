@@ -63,7 +63,12 @@ param set-default RA_WHEEL_BASE 2.825
 param set-default RA_ACC_RAD_GAIN 2
 param set-default RA_ACC_RAD_MAX 1.0
 param set-default RA_MAX_STR_ANG 1.31
-param set-default RA_STR_RATE_LIM 360
+# 45 deg/s = real hydraulic steering slew (lock-to-lock ~3 s), mirror of
+# 51003. The old 360 was effectively unlimited: instant 75° steering steps
+# make the SIH plant's yaw accel spike, and the omega x r GPS lever-arm term
+# then outruns the 8 Hz GPS -> EKF velocity-innovation stress -> position
+# resets at headland turns (mission 269).
+param set-default RA_STR_RATE_LIM 45
 
 # Rate Control Parameters
 param set-default RO_YAW_RATE_I 0.02
