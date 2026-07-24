@@ -495,6 +495,7 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 	const float MU_S = _sih_rov_mu.get();                   // [-] Static Coefficient of friction (grip)
 	static constexpr float MU_K = 0.06f;                    // [-] Kinetic (breakaway) resistance — rolling wheels, not a sliding box (was 0.4)
 	static constexpr float MU_R = 0.05f;                    // [-] Rolling resistance, firm field ground (was 0.3)
+	static constexpr float KDV_LAT = 21000.0f;              // [N/(m/s)²] lateral/vertical drag — pre-2026-07-24 isotropic value, damps sideslip
 	static constexpr float ROLLING_THRESHOLD = 0.05f;       // [m/s] Threshold for rolling resistance
 	static constexpr float STATIC_THRESHOLD = 0.01f;        // [m/s] Threshold for static resistance
 
@@ -570,9 +571,19 @@ void Sih::generate_rover_ackermann_dynamics(const float throttle_cmd, const floa
 
 	} else { // Rolling friction
 		F_f = _v_E.unit_or_zero() * MU_R * _MASS * 9.81f;
-		Vector3f v_E_squared = Vector3f(sign(_v_E(0)) * _v_E(0) * _v_E(0), sign(_v_E(1)) * _v_E(1) * _v_E(1),
-						sign(_v_E(2)) * _v_E(2) * _v_E(2));
-		F_a = _KDV * v_E_squared; // [N] Second order drag
+		// robot_nav 2026-07-24: ANISOTROPIC drag. SIH_KDV was cut 21000 -> 1160
+		// for the realistic longitudinal accel/terminal profile, but the old
+		// isotropic form also damped LATERAL slip; at 1160 the U-turn sideslip
+		// went nearly undamped (mission 266: |v| spikes to 2.76 m/s at every
+		// headland, EKF accel-bias buildup + GPS-rejection drift out of the
+		// field). Longitudinal (body-x) keeps SIH_KDV (terminal speed
+		// calibration); lateral/vertical get the old strong coefficient — a
+		// wheeled vehicle resists sideways motion far harder than forward.
+		const Vector3f v_B_drag = _q_E.rotateVectorInverse(_v_E);
+		const Vector3f f_a_b(_KDV * sign(v_B_drag(0)) * v_B_drag(0) * v_B_drag(0),
+				     KDV_LAT * sign(v_B_drag(1)) * v_B_drag(1) * v_B_drag(1),
+				     KDV_LAT * sign(v_B_drag(2)) * v_B_drag(2) * v_B_drag(2));
+		F_a = _q_E.rotateVector(f_a_b); // [N] Second order drag (body-anisotropic)
 	}
 
 	_Fa_E = -F_a - F_f;   // [N] Second order drag and friction
