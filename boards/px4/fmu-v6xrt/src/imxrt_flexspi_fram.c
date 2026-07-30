@@ -26,6 +26,7 @@
 
 #include <stdbool.h>
 #include <errno.h>
+#include <string.h>
 #include <debug.h>
 
 #include <nuttx/kmalloc.h>
@@ -489,16 +490,36 @@ static ssize_t imxrt_flexspi_fram_bwrite(struct mtd_dev_s *dev,
 		(struct imxrt_flexspi_fram_dev_s *)dev;
 	size_t len = nblocks * FRAM_PAGE_SIZE;
 	off_t offset = startblock * FRAM_PAGE_SIZE;
-	uint8_t *src = (uint8_t *) buffer;
+	const uint8_t *src = (const uint8_t *) buffer;
 #ifdef CONFIG_ARMV7M_DCACHE
 	uint8_t *dst = priv->ahb_base + startblock * FRAM_PAGE_SIZE;
 #endif
+	// Alignment bounce buffer, see the unaligned-access note in the loop below.
+	uint32_t aligned_page[FRAM_PAGE_SIZE / sizeof(uint32_t)];
 	int i;
 
 	finfo("startblock: %08lx nblocks: %d\n", (long)startblock, (int)nblocks);
 
 	while (len) {
+		const uint8_t *page_src = src;
 		i = MIN(FRAM_PAGE_SIZE, len);
+
+		// Unaligned-access hard-fault fix (2026-07-30): page_program casts this
+		// buffer to `uint32_t *` and imxrt_flexspi_write_blocking word-loads it
+		// (`ldr.w r3,[r7,r0,lsl #2]`, imxrt_flexspi.c:914). The MTD/BCH caller
+		// hands down a byte-aligned buffer — a `param save` buffer at 2 mod 4
+		// was observed twice. With CONFIG_ARMV7M_DCACHE off, imxrt_mpuinit.c
+		// forces C=0,B=0, i.e. Strongly-Ordered memory, where an unaligned
+		// access ALWAYS faults (no NVIC_CFGCON_UNALIGNTRP needed) — so every
+		// such save hard-faulted the FMU: UsageFault UNALIGNED, cfsr 0x01000000,
+		// task `param` (fault_1970_01_01_00_54_03 / _00_58_06, 2026-07-30).
+		// Copy the page to a word-aligned stack buffer when needed. Do it
+		// outside the critical section below; one FRAM page is 128 B.
+		if (((uintptr_t)src & 3u) != 0u) {
+			memcpy(aligned_page, src, i);
+			page_src = (const uint8_t *)aligned_page;
+		}
+
 		// RWW hard-fault fix (2026-07-22): the FRAM shares the FlexSPI with
 		// XIP code. FLEXSPI_SOFTWARE_RESET mid-transaction while ANY code
 		// (an ISR, another task) fetches from XIP flash hard-faults inside
@@ -517,12 +538,15 @@ static ssize_t imxrt_flexspi_fram_bwrite(struct mtd_dev_s *dev,
 		irqstate_t flags = enter_critical_section();
 		FLEXSPI_CONFIGURE_PREFETCH(priv->flexspi, false);
 		imxrt_flexspi_fram_write_enable(priv);
-		imxrt_flexspi_fram_page_program(priv, offset, src, i);
+		imxrt_flexspi_fram_page_program(priv, offset, page_src, i);
 		imxrt_flexspi_fram_wait_bus_busy(priv);
 		FLEXSPI_SOFTWARE_RESET(priv->flexspi);
 		FLEXSPI_CONFIGURE_PREFETCH(priv->flexspi, true);
 		leave_critical_section(flags);
 		offset += i;
+		// src was NOT advanced before 2026-07-30: any nblocks > 1 write
+		// re-programmed page 0's data into every following page.
+		src += i;
 		len -= i;
 	}
 
