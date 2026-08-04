@@ -199,6 +199,9 @@ void imxrt_octl_flash_initialize(void)
 /****************************************************************************
  * FlexSPI DLL / DQS read-strobe calibration
  *
+ * Authored by NXP (PetervdPerk-NXP) — branch pr-v6xrt-dll-cal on PX4 issue
+ * #27735, commit c95723cd8e, carried here on top of our FRAM fix (#28127).
+ *
  * The ROM leaves the DLL delay that samples the flash data strobe (DQS)
  * off-centre in the valid-read window, so a fetch can occasionally read corrupt
  * data and fault. This sweeps the DLL delay, finds the range of delays that read
