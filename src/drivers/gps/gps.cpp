@@ -556,7 +556,12 @@ int GPS::pollOrRead(uint8_t *buf, size_t buf_length, int timeout)
 
 void GPS::handleInjectDataTopic()
 {
-	if (!_helper->shouldInjectRTCM()) {
+	// receiverReady() is false until the receiver is configured, which keeps us from writing to
+	// the device mid-configuration. It replaced shouldInjectRTCM() in GpsDrivers #212, which also
+	// split moving-baseline injection out into shouldInjectMovingBaseline(). We do not run a
+	// moving-base pair (the X20D carries both antennas on one receiver), so the old gate and the
+	// new one are equivalent here and the moving-baseline path is deliberately not backported.
+	if (!_helper->receiverReady()) {
 		return;
 	}
 
@@ -816,16 +821,16 @@ GPS::run()
 		switch (gps_ubx_mode) {
 		case 1:  // heading
 			if (_instance == Instance::Main) {
-				ubx_mode = GPSDriverUBX::UBXMode::RoverWithMovingBase;
+				ubx_mode = GPSDriverUBX::UBXMode::RoverWithMovingBaseUART2;
 
 			} else {
-				ubx_mode = GPSDriverUBX::UBXMode::MovingBase;
+				ubx_mode = GPSDriverUBX::UBXMode::MovingBaseUART2;
 			}
 
 			break;
 
 		case 2:
-			ubx_mode = GPSDriverUBX::UBXMode::MovingBase;
+			ubx_mode = GPSDriverUBX::UBXMode::MovingBaseUART2;
 			break;
 
 		case 3:
@@ -843,7 +848,7 @@ GPS::run()
 			break;
 
 		case 5:  // rover with static base on Uart2
-			ubx_mode = GPSDriverUBX::UBXMode::RoverWithStaticBaseUart2;
+			ubx_mode = GPSDriverUBX::UBXMode::RoverWithStaticBaseUART2;
 			break;
 
 		case 6:
@@ -1101,7 +1106,7 @@ GPS::run()
 			unsigned receive_timeout = TIMEOUT_INIT_5HZ;
 			unsigned healthy_timeout = TIMEOUT_5HZ;
 
-			if ((ubx_mode == GPSDriverUBX::UBXMode::RoverWithMovingBase)
+			if ((ubx_mode == GPSDriverUBX::UBXMode::RoverWithMovingBaseUART2)
 			    || (ubx_mode == GPSDriverUBX::UBXMode::RoverWithMovingBaseUART1)) {
 				/* The MB rover will wait as long as possible to compute a navigation solution,
 				 * possibly lowering the navigation rate all the way to 1 Hz while doing so. */
