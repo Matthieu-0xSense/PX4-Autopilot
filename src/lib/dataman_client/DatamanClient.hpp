@@ -180,7 +180,13 @@ private:
 	 * *Sync path so a losing client re-registers on first real use. Async paths
 	 * keep their instant non-blocking guard. robot_nav patch, see
 	 * docs/px4_changes.md. */
-	bool ensureClientId(hrt_abstime timeout = 1000_ms);
+	bool ensureClientId(hrt_abstime timeout = 100_ms);
+
+	// ensureClientId pacing: at most one DM_GET_ID attempt per period, each
+	// bounded to the handshake max (and further by the caller's timeout).
+	static constexpr hrt_abstime ID_RETRY_PERIOD{1_s};
+	static constexpr hrt_abstime ID_HANDSHAKE_MAX{100_ms};
+	hrt_abstime _last_id_attempt_us{0};
 
 	State _state{State::Idle};
 	Request _active_request{};

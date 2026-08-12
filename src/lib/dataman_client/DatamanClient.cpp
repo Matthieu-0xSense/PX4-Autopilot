@@ -63,6 +63,16 @@ DatamanClient::DatamanClient()
 
 bool DatamanClient::ensureClientId(hrt_abstime timeout)
 {
+	// Rate-limit + caller-bounded (2026-07-22 rev 2): the first revision
+	// retried a 1000 ms blocking DM_GET_ID inside EVERY *Sync call. When
+	// acquisition cannot succeed (the navigator's item paging overwrites the
+	// dataman_response queue faster than we poll, so our GET_ID answer is
+	// lost), a hot caller (zone sweep, 50 Hz bridge loop) turned into a
+	// permanent 1 s-per-cycle stall storm that starved the system (mission
+	// 257: CAN TX rate halved, mavlink dead). Acquisition is only winnable in
+	// QUIET dataman windows anyway — try at most every ID_RETRY_PERIOD and
+	// never longer than the caller's own timeout budget.
+
 	// Lazy (re-)registration — robot_nav patch re-applied 2026-07-22 (see
 	// robot_nav docs/px4_changes.md "lazy client-id re-registration"). The
 	// ctor's single DM_GET_ID loses the race against the multi-second dataman
@@ -81,13 +91,21 @@ bool DatamanClient::ensureClientId(hrt_abstime timeout)
 
 	hrt_abstime timestamp = hrt_absolute_time();
 
+	if (_last_id_attempt_us != 0
+	    && (timestamp - _last_id_attempt_us) < ID_RETRY_PERIOD) {
+		return false;   // rate-limited — fail fast, retry later
+	}
+
+	_last_id_attempt_us = timestamp;
+
 	dataman_request_s request;
 	request.timestamp = timestamp;
 	request.request_type = DM_GET_ID;
 	request.client_id = CLIENT_ID_NOT_SET;
 
 	dataman_response_s response{};
-	bool success = syncHandler(request, response, timestamp, timeout);
+	bool success = syncHandler(request, response, timestamp,
+				   (timeout < ID_HANDSHAKE_MAX) ? timeout : ID_HANDSHAKE_MAX);
 
 	if (success && (response.client_id > CLIENT_ID_NOT_SET)) {
 		_client_id = response.client_id;
