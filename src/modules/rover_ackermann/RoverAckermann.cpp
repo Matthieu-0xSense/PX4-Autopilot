@@ -136,7 +136,27 @@ void RoverAckermann::generateSetpoints()
 
 void RoverAckermann::updateControllers()
 {
-	if (_vehicle_control_mode.flag_control_position_enabled) {
+	// siza: while robot_nav's rover_path_follow reports active it publishes
+	// the speed and steering setpoints itself; pure pursuit and the attitude /
+	// yaw-rate cascade stand down, and restart clean when it hands back.
+	bool path_follow = false;
+#ifdef ROVER_PATH_FOLLOW_HOOK
+	rover_path_follow_status_s path_follow_status;
+
+	if (_vehicle_control_mode.flag_control_position_enabled
+	    && _rover_path_follow_status_sub.copy(&path_follow_status)) {
+		path_follow = path_follow_status.active && (hrt_elapsed_time(&path_follow_status.timestamp) < 50_ms);
+	}
+
+#endif
+
+	if (path_follow != _path_follow_active) {
+		_ackermann_att_control.reset();
+		_ackermann_rate_control.reset();
+		_path_follow_active = path_follow;
+	}
+
+	if (_vehicle_control_mode.flag_control_position_enabled && !path_follow) {
 		_ackermann_pos_control.updatePosControl();
 	}
 
@@ -144,11 +164,11 @@ void RoverAckermann::updateControllers()
 		_ackermann_speed_control.updateSpeedControl();
 	}
 
-	if (_vehicle_control_mode.flag_control_attitude_enabled) {
+	if (_vehicle_control_mode.flag_control_attitude_enabled && !path_follow) {
 		_ackermann_att_control.updateAttControl();
 	}
 
-	if (_vehicle_control_mode.flag_control_rates_enabled) {
+	if (_vehicle_control_mode.flag_control_rates_enabled && !path_follow) {
 		_ackermann_rate_control.updateRateControl();
 	}
 

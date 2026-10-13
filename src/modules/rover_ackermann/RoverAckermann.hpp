@@ -50,6 +50,14 @@
 #include <uORB/topics/vehicle_control_mode.h>
 #include <uORB/topics/vehicle_status.h>
 
+// siza: robot_nav's rover_path_follow (external module) can take over speed +
+// steering in AUTO_MISSION. Present only when built with robot_nav's
+// EXTERNAL_MODULES_LOCATION; without it this module is stock.
+#if __has_include(<uORB/topics/rover_path_follow_status.h>)
+#include <uORB/topics/rover_path_follow_status.h>
+#define ROVER_PATH_FOLLOW_HOOK 1
+#endif
+
 // Local includes
 #include "AckermannActControl/AckermannActControl.hpp"
 #include "AckermannRateControl/AckermannRateControl.hpp"
@@ -121,6 +129,10 @@ private:
 	uORB::Subscription _vehicle_status_sub{ORB_ID(vehicle_status)};
 	uORB::Subscription _vehicle_control_mode_sub{ORB_ID(vehicle_control_mode)};
 	vehicle_control_mode_s _vehicle_control_mode{};
+#ifdef ROVER_PATH_FOLLOW_HOOK
+	uORB::Subscription _rover_path_follow_status_sub{ORB_ID(rover_path_follow_status)};
+#endif
+	bool _path_follow_active{false}; // external path follower drove the last cycle
 
 	// Class instances
 	AckermannActControl  _ackermann_act_control{this};
